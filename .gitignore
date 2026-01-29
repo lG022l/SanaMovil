@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Modelos de IA (Whisper y MedGemma)
+*.bin
+*.gguf
+*.tflite
+
+# Carpetas de construcción nativa
+.cxx/
+build/
+app/build/
+
+# Archivos temporales de audio
+*.wav
