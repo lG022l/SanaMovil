@@ -6,7 +6,6 @@ project("sanamovil")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -pthread")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread")
 
-# Definimos los archivos manualmente (ahora son pocos y seguros)
 set(WHISPER_SOURCES
         whisper/ggml.c
         whisper/ggml-alloc.c

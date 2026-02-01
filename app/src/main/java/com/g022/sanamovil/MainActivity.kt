@@ -38,11 +38,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1. Vincular UI
+        // Vincular UI
         btnRecord = findViewById(R.id.btnRecord)
         tvResult = findViewById(R.id.tvResult)
 
-        // 2. Cargar modelo al iniciar (en segundo plano)
+        // Cargar modelo al iniciar en segundo plano
         btnRecord.isEnabled = false // Desactivar botón hasta que cargue
         tvResult.text = "Cargando modelo Whisper..."
 
@@ -63,7 +63,7 @@ class MainActivity : AppCompatActivity() {
             }
         }.start()
 
-        // 3. Configurar el Botón
+        // Botón
         btnRecord.setOnClickListener {
             if (checkPermissions()) {
                 iniciarGrabacion()
@@ -81,16 +81,16 @@ class MainActivity : AppCompatActivity() {
 
         Thread {
             try {
-                // A. Grabar 3 segundos
+                // Grabar 3 segundos
                 val audioData = grabarAudio(3)
 
                 if (audioData.isNotEmpty()) {
                     runOnUiThread { tvResult.text = "Procesando voz..." }
 
-                    // B. Transcribir (Whisper)
+                    // Transcribir con Whisper
                     val textoTranscrito = transcribeAudio(audioData)
 
-                    // C. Mostrar resultado en pantalla
+                    // Mostrar trancripción en pantalla
                     runOnUiThread {
                         tvResult.text = textoTranscrito
                         Log.d("WHISPER_RESULT", textoTranscrito)
@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread { tvResult.text = "Error: ${e.message}" }
             } finally {
-                // Reactivar botón siempre
+                // Reactivar botón
                 runOnUiThread {
                     btnRecord.isEnabled = true
                     btnRecord.text = "GRABAR (3s)"
@@ -140,7 +140,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Gestión de Permisos y Archivos (igual que antes) ---
+    // --- Gestión de Permisos y Archivos  ---
     private fun checkPermissions() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     private fun requestPermissions() {
