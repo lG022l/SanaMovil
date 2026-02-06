@@ -11,7 +11,17 @@
 static llama_model *model = nullptr;
 static llama_context *ctx = nullptr;
 static llama_sampler *sampler = nullptr; // NUEVO: Para elegir palabras
-
+// --- NUEVO: Función para capturar los gritos internos de Llama ---
+static void llama_log_callback(ggml_log_level level, const char * text, void * user_data) {
+    // Si es error, lo pintamos rojo
+    if (level == GGML_LOG_LEVEL_ERROR) {
+        __android_log_print(ANDROID_LOG_ERROR, "LLAMA_INTERNAL", "%s", text);
+    }
+        // Si es info normal, lo pintamos verde/blanco
+    else {
+        __android_log_print(ANDROID_LOG_INFO, "LLAMA_INTERNAL", "%s", text);
+    }
+}
 // --- AYUDANTES (Helpers que faltaban) ---
 
 // Función manual para convertir JString a std::string
@@ -52,6 +62,9 @@ Java_com_g022_sanamovil_MainActivity_loadMedGemma(JNIEnv *env, jobject, jstring 
 
     const char *path = env->GetStringUTFChars(model_path, nullptr);
     __android_log_print(ANDROID_LOG_INFO, TAG, "Cargando MedGemma desde: %s", path);
+
+    // 1. Activar el micrófono de logs (¡IMPORTANTE!)
+    llama_log_set(llama_log_callback, NULL);
 
     llama_backend_init();
 

@@ -9,7 +9,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
+import android.widget.Toast // Agregado para notificaciones breves
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -22,44 +22,76 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRecord: Button
     private lateinit var tvResult: TextView
 
-    // Estado del modelo
-    private var isModelLoaded = false
+    // Estado de los modelos
+    private var isWhisperLoaded = false
+    private var isLlamaLoaded = false // NUEVO: Estado del cerebro
 
-    // Funciones nativas (C++)
+    // --- FUNCIONES NATIVAS (C++) ---
+    // 1. Whisper (Oído)
     external fun loadModel(modelPath: String): Boolean
     external fun transcribeAudio(audioData: FloatArray): String
 
+    // 2. Llama (Cerebro) - NUEVAS
+    external fun loadMedGemma(modelPath: String): Int
+    external fun answerPrompt(prompt: String): String
+    external fun unloadModel() // Para limpiar memoria al salir
+
     companion object {
-        init { System.loadLibrary("sanamovil") } // Recuerda: el nombre debe coincidir con CMakeLists
+        init { System.loadLibrary("sanamovil") }
         private const val PERMISSION_REQUEST_CODE = 200
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
+        //codigo de prueba para problema con medgemma
+        Log.e("SANA_DEBUG", "--- INICIO DE RASTREO DE ARCHIVOS ---")
+        Log.e("SANA_DEBUG", "Buscando en la carpeta: ${filesDir.absolutePath}")
+        val listaArchivos = filesDir.listFiles()
+        if (listaArchivos != null && listaArchivos.isNotEmpty()) {
+            for (archivo in listaArchivos) {
+                Log.e("SANA_DEBUG", "ENCONTRADO: ${archivo.name} (Tamaño: ${archivo.length()} bytes)")
+            }
+        } else {
+            Log.e("SANA_DEBUG", "¡La carpeta 'files' está VACÍA!")
+        }
+        Log.e("SANA_DEBUG", "--- FIN DE RASTREO ---")
         // Vincular UI
         btnRecord = findViewById(R.id.btnRecord)
         tvResult = findViewById(R.id.tvResult)
 
-        // Cargar modelo al iniciar en segundo plano
-        btnRecord.isEnabled = false // Desactivar botón hasta que cargue
-        tvResult.text = "Cargando modelo Whisper..."
+        btnRecord.isEnabled = false
+        tvResult.text = "Iniciando sistemas de IA..."
 
+        // Cargar modelos en un hilo secundario para no trabar la app
         Thread {
-            val modelPath = getModelPath("ggml-tiny.bin")
-            if (File(modelPath).exists()) {
-                isModelLoaded = loadModel(modelPath)
-                runOnUiThread {
-                    if (isModelLoaded) {
-                        btnRecord.isEnabled = true
-                        tvResult.text = "Modelo listo. \nPresiona Grabar."
-                    } else {
-                        tvResult.text = "Error: No se pudo cargar el modelo."
-                    }
-                }
+            // A. CARGAR WHISPER (Como antes)
+            val whisperPath = getModelPath("ggml-tiny.bin") // Este sí está en assets
+            if (File(whisperPath).exists()) {
+                isWhisperLoaded = loadModel(whisperPath)
+            }
+
+            // B. CARGAR MEDGEMMA (NUEVO)
+            // OJO: Este archivo NO está en assets todavía, lo meteremos manual (Sideload)
+            // Buscamos en la carpeta de archivos de la app directamente
+            val llamaPath = File(filesDir, "phi-2.Q4_K_M.gguf").absolutePath
+
+            if (File(llamaPath).exists()) {
+                val status = loadMedGemma(llamaPath)
+                isLlamaLoaded = (status == 0) // 0 significa éxito en nuestro C++
             } else {
-                runOnUiThread { tvResult.text = "Error: Archivo de modelo no encontrado." }
+                Log.e("SANA", "No se encontró medgemma-2b.gguf en: $llamaPath")
+            }
+
+            // Actualizar UI al terminar
+            runOnUiThread {
+                if (isWhisperLoaded) {
+                    btnRecord.isEnabled = true
+                    val estadoCerebro = if (isLlamaLoaded) "Cerebro ACTIVO 🧠" else "Cerebro DESCONECTADO (Falta archivo)"
+                    tvResult.text = "Whisper Listo 👂.\n$estadoCerebro\n\nPresiona Grabar."
+                } else {
+                    tvResult.text = "Error crítico: Whisper no cargó."
+                }
             }
         }.start()
 
@@ -74,34 +106,48 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun iniciarGrabacion() {
-        // Deshabilitar botón para evitar doble click
         btnRecord.isEnabled = false
-        btnRecord.text = "Grabando..."
-        tvResult.text = "Escuchando..."
+        btnRecord.text = "Escuchando..."
+        tvResult.text = "Grabando audio..."
 
         Thread {
             try {
-                // Grabar 3 segundos
-                val audioData = grabarAudio(3)
+                // 1. GRABAR
+                val audioData = grabarAudio(3) // 3 segundos
 
                 if (audioData.isNotEmpty()) {
-                    runOnUiThread { tvResult.text = "Procesando voz..." }
+                    runOnUiThread { tvResult.text = "Transcribiendo..." }
 
-                    // Transcribir con Whisper
-                    val textoTranscrito = transcribeAudio(audioData)
+                    // 2. TRANSCRIBIR (Oído)
+                    val textoUsuario = transcribeAudio(audioData)
+                    Log.d("SANA", "Usuario dijo: $textoUsuario")
 
-                    // Mostrar trancripción en pantalla
+                    // Mostrar lo que entendió
                     runOnUiThread {
-                        tvResult.text = textoTranscrito
-                        Log.d("WHISPER_RESULT", textoTranscrito)
+                        tvResult.text = "Tú: $textoUsuario\n\nPensando respuesta..."
                     }
+
+                    // 3. PENSAR (Cerebro) - NUEVO
+                    if (isLlamaLoaded) {
+                        // Enviamos el texto al modelo médico
+                        val respuestaMedica = answerPrompt(textoUsuario)
+
+                        // 4. MOSTRAR RESPUESTA FINAL
+                        runOnUiThread {
+                            tvResult.text = "Tú: $textoUsuario\n\n🤖 SanaIA: $respuestaMedica"
+                        }
+                    } else {
+                        runOnUiThread {
+                            tvResult.text = "Tú: $textoUsuario\n\n(El cerebro médico no está cargado. Sube el archivo .gguf)"
+                        }
+                    }
+
                 } else {
-                    runOnUiThread { tvResult.text = "Error: No se grabó audio." }
+                    runOnUiThread { tvResult.text = "Error: No se escuchó nada." }
                 }
             } catch (e: Exception) {
                 runOnUiThread { tvResult.text = "Error: ${e.message}" }
             } finally {
-                // Reactivar botón
                 runOnUiThread {
                     btnRecord.isEnabled = true
                     btnRecord.text = "GRABAR (3s)"
@@ -109,6 +155,8 @@ class MainActivity : AppCompatActivity() {
             }
         }.start()
     }
+
+    // --- (El resto de funciones siguen IGUAL que antes) ---
 
     private fun grabarAudio(durationSecs: Int): FloatArray {
         val sampleRate = 16000
@@ -134,13 +182,11 @@ class MainActivity : AppCompatActivity() {
         recorder.stop()
         recorder.release()
 
-        // Convertir a Float para Whisper
         return FloatArray(audioDataShort.size) { i ->
             audioDataShort[i] / 32768.0f
         }
     }
 
-    // --- Gestión de Permisos y Archivos  ---
     private fun checkPermissions() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
     private fun requestPermissions() {
@@ -150,12 +196,13 @@ class MainActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            iniciarGrabacion() // Iniciar automáticamente si da permiso
+            iniciarGrabacion()
         }
     }
 
     private fun getModelPath(assetName: String): String {
         val file = File(filesDir, assetName)
+        // Solo copiamos si no existe, para ahorrar tiempo
         if (!file.exists()) {
             try {
                 assets.open("models/$assetName").use { inputStream ->
@@ -163,8 +210,14 @@ class MainActivity : AppCompatActivity() {
                         inputStream.copyTo(outputStream)
                     }
                 }
-            } catch (e: Exception) { Log.e("SANA", "Error copiando: $e") }
+            } catch (e: Exception) { Log.e("SANA", "Error copiando asset $assetName: $e") }
         }
         return file.absolutePath
+    }
+
+    // Limpieza al cerrar la app
+    override fun onDestroy() {
+        super.onDestroy()
+        unloadModel() // Liberar RAM
     }
 }
