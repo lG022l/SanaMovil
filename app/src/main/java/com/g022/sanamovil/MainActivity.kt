@@ -9,12 +9,14 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast // Agregado para notificaciones breves
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
+// 1. IMPORTACIONES DE MEDIAPIPE (EL NUEVO CEREBRO)
+import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 
 class MainActivity : AppCompatActivity() {
 
@@ -24,17 +26,12 @@ class MainActivity : AppCompatActivity() {
 
     // Estado de los modelos
     private var isWhisperLoaded = false
-    private var isLlamaLoaded = false // NUEVO: Estado del cerebro
+    private var cerebroIA: LlmInference? = null // Variable para el cerebro de Google
 
-    // --- FUNCIONES NATIVAS (C++) ---
-    // 1. Whisper (Oído)
+    // --- FUNCIONES NATIVAS (SOLO WHISPER) ---
+    // Ya borramos todo lo de Llama. Solo queda el oído en C++.
     external fun loadModel(modelPath: String): Boolean
     external fun transcribeAudio(audioData: FloatArray): String
-
-    // 2. Llama (Cerebro) - NUEVAS
-    external fun loadMedGemma(modelPath: String): Int
-    external fun answerPrompt(prompt: String): String
-    external fun unloadModel() // Para limpiar memoria al salir
 
     companion object {
         init { System.loadLibrary("sanamovil") }
@@ -44,53 +41,53 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        //codigo de prueba para problema con medgemma
-        Log.e("SANA_DEBUG", "--- INICIO DE RASTREO DE ARCHIVOS ---")
-        Log.e("SANA_DEBUG", "Buscando en la carpeta: ${filesDir.absolutePath}")
-        val listaArchivos = filesDir.listFiles()
-        if (listaArchivos != null && listaArchivos.isNotEmpty()) {
-            for (archivo in listaArchivos) {
-                Log.e("SANA_DEBUG", "ENCONTRADO: ${archivo.name} (Tamaño: ${archivo.length()} bytes)")
-            }
-        } else {
-            Log.e("SANA_DEBUG", "¡La carpeta 'files' está VACÍA!")
-        }
-        Log.e("SANA_DEBUG", "--- FIN DE RASTREO ---")
+
         // Vincular UI
         btnRecord = findViewById(R.id.btnRecord)
         tvResult = findViewById(R.id.tvResult)
 
         btnRecord.isEnabled = false
-        tvResult.text = "Iniciando sistemas de IA..."
+        tvResult.text = "Iniciando sistemas..."
 
-        // Cargar modelos en un hilo secundario para no trabar la app
+        // Cargar modelos en segundo plano
         Thread {
-            // A. CARGAR WHISPER (Como antes)
-            val whisperPath = getModelPath("ggml-tiny.bin") // Este sí está en assets
+            // A. CARGAR WHISPER (C++ Nativo)
+            val whisperPath = getModelPath("ggml-tiny.bin")
             if (File(whisperPath).exists()) {
                 isWhisperLoaded = loadModel(whisperPath)
             }
 
-            // B. CARGAR MEDGEMMA (NUEVO)
-            // OJO: Este archivo NO está en assets todavía, lo meteremos manual (Sideload)
-            // Buscamos en la carpeta de archivos de la app directamente
-            val llamaPath = File(filesDir, "phi-2.Q4_K_M.gguf").absolutePath
+            // B. CARGAR CEREBRO (MediaPipe - Google)
+            // IMPORTANTE: MediaPipe NO usa .gguf, usa archivos .bin
+            val modelName = "gemma-2b-it-cpu-int4.bin"
+            val modelFile = File(filesDir, modelName)
 
-            if (File(llamaPath).exists()) {
-                val status = loadMedGemma(llamaPath)
-                isLlamaLoaded = (status == 0) // 0 significa éxito en nuestro C++
+            if (modelFile.exists()) {
+                try {
+                    val options = LlmInferenceOptions.builder()
+                        .setModelPath(modelFile.absolutePath)
+                        .setMaxTokens(1000) // Respuesta más larga
+                        .setTopK(40)
+                        .setTemperature(0.7f) // Creatividad balanceada
+                        .build()
+
+                    cerebroIA = LlmInference.createFromOptions(this, options)
+                    Log.d("SANA", "MediaPipe cargado exitosamente 🚀")
+                } catch (e: Exception) {
+                    Log.e("SANA", "Error cargando MediaPipe: ${e.message}")
+                }
             } else {
-                Log.e("SANA", "No se encontró medgemma-2b.gguf en: $llamaPath")
+                Log.e("SANA", "Falta el archivo $modelName")
             }
 
-            // Actualizar UI al terminar
+            // Actualizar Pantalla
             runOnUiThread {
                 if (isWhisperLoaded) {
                     btnRecord.isEnabled = true
-                    val estadoCerebro = if (isLlamaLoaded) "Cerebro ACTIVO 🧠" else "Cerebro DESCONECTADO (Falta archivo)"
+                    val estadoCerebro = if (cerebroIA != null) "Cerebro ACTIVO 🧠 (CPU)" else "Cerebro DESCONECTADO (Falta .bin)"
                     tvResult.text = "Whisper Listo 👂.\n$estadoCerebro\n\nPresiona Grabar."
                 } else {
-                    tvResult.text = "Error crítico: Whisper no cargó."
+                    tvResult.text = "Error: Whisper no pudo cargar."
                 }
             }
         }.start()
@@ -113,37 +110,39 @@ class MainActivity : AppCompatActivity() {
         Thread {
             try {
                 // 1. GRABAR
-                val audioData = grabarAudio(3) // 3 segundos
+                val audioData = grabarAudio(3)
 
                 if (audioData.isNotEmpty()) {
                     runOnUiThread { tvResult.text = "Transcribiendo..." }
 
-                    // 2. TRANSCRIBIR (Oído)
+                    // 2. TRANSCRIBIR (Whisper C++)
                     val textoUsuario = transcribeAudio(audioData)
-                    Log.d("SANA", "Usuario dijo: $textoUsuario")
+                    Log.d("SANA", "Usuario: $textoUsuario")
 
-                    // Mostrar lo que entendió
                     runOnUiThread {
-                        tvResult.text = "Tú: $textoUsuario\n\nPensando respuesta..."
+                        tvResult.text = "Tú: $textoUsuario\n\nGenerando diagnóstico..."
                     }
 
-                    // 3. PENSAR (Cerebro) - NUEVO
-                    if (isLlamaLoaded) {
-                        // Enviamos el texto al modelo médico
-                        val respuestaMedica = answerPrompt(textoUsuario)
+                    // 3. PENSAR (MediaPipe)
+                    if (cerebroIA != null) {
+                        try {
+                            // ¡Aquí ocurre la magia de Google!
+                            val respuesta = cerebroIA!!.generateResponse(textoUsuario)
 
-                        // 4. MOSTRAR RESPUESTA FINAL
-                        runOnUiThread {
-                            tvResult.text = "Tú: $textoUsuario\n\n🤖 SanaIA: $respuestaMedica"
+                            runOnUiThread {
+                                tvResult.text = "Tú: $textoUsuario\n\n🤖 SanaIA: $respuesta"
+                            }
+                        } catch (e: Exception) {
+                            runOnUiThread { tvResult.text = "Error al pensar: ${e.message}" }
                         }
                     } else {
                         runOnUiThread {
-                            tvResult.text = "Tú: $textoUsuario\n\n(El cerebro médico no está cargado. Sube el archivo .gguf)"
+                            tvResult.text = "Tú: $textoUsuario\n\n(Cerebro desconectado. Sube un archivo .bin)"
                         }
                     }
 
                 } else {
-                    runOnUiThread { tvResult.text = "Error: No se escuchó nada." }
+                    runOnUiThread { tvResult.text = "No te escuché bien." }
                 }
             } catch (e: Exception) {
                 runOnUiThread { tvResult.text = "Error: ${e.message}" }
@@ -156,8 +155,7 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    // --- (El resto de funciones siguen IGUAL que antes) ---
-
+    // --- Gestión de Audio y Permisos (Igual que siempre) ---
     private fun grabarAudio(durationSecs: Int): FloatArray {
         val sampleRate = 16000
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -169,22 +167,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, bufferSize)
-
-        if (recorder.state != AudioRecord.STATE_INITIALIZED) {
-            Log.e("SANA", "Error iniciando AudioRecord")
-            return FloatArray(0)
-        }
+        if (recorder.state != AudioRecord.STATE_INITIALIZED) return FloatArray(0)
 
         val audioDataShort = ShortArray(sampleRate * durationSecs)
-
         recorder.startRecording()
         recorder.read(audioDataShort, 0, audioDataShort.size)
         recorder.stop()
         recorder.release()
 
-        return FloatArray(audioDataShort.size) { i ->
-            audioDataShort[i] / 32768.0f
-        }
+        return FloatArray(audioDataShort.size) { i -> audioDataShort[i] / 32768.0f }
     }
 
     private fun checkPermissions() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -202,7 +193,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun getModelPath(assetName: String): String {
         val file = File(filesDir, assetName)
-        // Solo copiamos si no existe, para ahorrar tiempo
         if (!file.exists()) {
             try {
                 assets.open("models/$assetName").use { inputStream ->
@@ -210,14 +200,13 @@ class MainActivity : AppCompatActivity() {
                         inputStream.copyTo(outputStream)
                     }
                 }
-            } catch (e: Exception) { Log.e("SANA", "Error copiando asset $assetName: $e") }
+            } catch (e: Exception) { Log.e("SANA", "Error asset: $e") }
         }
         return file.absolutePath
     }
 
-    // Limpieza al cerrar la app
     override fun onDestroy() {
         super.onDestroy()
-        unloadModel() // Liberar RAM
+        // No hay nada nativo que limpiar de Llama, MediaPipe se limpia solo o con close() si quisieras
     }
 }
