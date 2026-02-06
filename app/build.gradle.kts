@@ -15,6 +15,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            // Solo compilamos para procesadores modernos (64 bits)
+            abiFilters += listOf("arm64-v8a")
+        }
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
