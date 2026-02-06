@@ -66,9 +66,9 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val options = LlmInferenceOptions.builder()
                         .setModelPath(modelFile.absolutePath)
-                        .setMaxTokens(1000) // Respuesta más larga
-                        .setTopK(40)
-                        .setTemperature(0.7f) // Creatividad balanceada
+                        .setMaxTokens(512) // Mantén esto en 512 como acordamos para evitar el crash de memoria
+                        // .setTopK(40)       <-- BORRAR o COMENTAR (Causa del error)
+                        // .setTemperature(0.7f) <-- BORRAR o COMENTAR (Por si acaso también falla)
                         .build()
 
                     cerebroIA = LlmInference.createFromOptions(this, options)
@@ -126,8 +126,14 @@ class MainActivity : AppCompatActivity() {
                     // 3. PENSAR (MediaPipe)
                     if (cerebroIA != null) {
                         try {
-                            // ¡Aquí ocurre la magia de Google!
-                            val respuesta = cerebroIA!!.generateResponse(textoUsuario)
+
+                            // AHORA (Con formato médico y estructura correcta):
+                            val promptEstructurado = "<start_of_turn>user\n" +
+                                    "Eres un asistente médico útil y conciso. Responde en español.\n" + // La Identidad
+                                    "Pregunta del paciente: $textoUsuario<end_of_turn>\n" +
+                                    "<start_of_turn>model\n" // Aquí le damos el turno para hablar
+
+                            val respuesta = cerebroIA!!.generateResponse(promptEstructurado)
 
                             runOnUiThread {
                                 tvResult.text = "Tú: $textoUsuario\n\n🤖 SanaIA: $respuesta"
