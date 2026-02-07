@@ -14,22 +14,17 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
-// 1. IMPORTACIONES DE MEDIAPIPE (EL NUEVO CEREBRO)
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 
 class MainActivity : AppCompatActivity() {
 
-    // Referencias a la UI
     private lateinit var btnRecord: Button
     private lateinit var tvResult: TextView
-
-    // Estado de los modelos
     private var isWhisperLoaded = false
-    private var cerebroIA: LlmInference? = null // Variable para el cerebro de Google
+    private var cerebroIA: LlmInference? = null
 
-    // --- FUNCIONES NATIVAS (SOLO WHISPER) ---
-    // Ya borramos todo lo de Llama. Solo queda el oído en C++.
+    // ===== WHISPER (C++) =====
     external fun loadModel(modelPath: String): Boolean
     external fun transcribeAudio(audioData: FloatArray): String
 
@@ -42,114 +37,108 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Vincular UI
         btnRecord = findViewById(R.id.btnRecord)
         tvResult = findViewById(R.id.tvResult)
+        window.decorView.setBackgroundColor(0xFF1A1A1A.toInt())
 
+        tvResult.setTextColor(0xFFFFFFFF.toInt()) // Texto Blanco
+        tvResult.textSize = 18f
         btnRecord.isEnabled = false
         tvResult.text = "Iniciando sistemas..."
 
-        // Cargar modelos en segundo plano
         Thread {
-            // A. CARGAR WHISPER (C++ Nativo)
+            // 1. CARGAR WHISPER
             val whisperPath = getModelPath("ggml-tiny.bin")
             if (File(whisperPath).exists()) {
                 isWhisperLoaded = loadModel(whisperPath)
             }
 
-            // B. CARGAR CEREBRO (MediaPipe - Google)
-            // IMPORTANTE: MediaPipe NO usa .gguf, usa archivos .bin
+            // 2. CARGAR GEMMA (MediaPipe)
             val modelName = "gemma-2b-it-cpu-int4.bin"
             val modelFile = File(filesDir, modelName)
 
             if (modelFile.exists()) {
                 try {
+                    // Configuración básica y estable
                     val options = LlmInferenceOptions.builder()
                         .setModelPath(modelFile.absolutePath)
-                        .setMaxTokens(512) // Mantén esto en 512 como acordamos para evitar el crash de memoria
-                        // .setTopK(40)       <-- BORRAR o COMENTAR (Causa del error)
-                        // .setTemperature(0.7f) <-- BORRAR o COMENTAR (Por si acaso también falla)
+                        .setMaxTokens(512)
                         .build()
 
                     cerebroIA = LlmInference.createFromOptions(this, options)
-                    Log.d("SANA", "MediaPipe cargado exitosamente 🚀")
+                    Log.d("SANA", "Cerebro cargado OK")
                 } catch (e: Exception) {
-                    Log.e("SANA", "Error cargando MediaPipe: ${e.message}")
+                    Log.e("SANA", "Error MediaPipe: ${e.message}")
                 }
-            } else {
-                Log.e("SANA", "Falta el archivo $modelName")
             }
 
-            // Actualizar Pantalla
             runOnUiThread {
                 if (isWhisperLoaded) {
                     btnRecord.isEnabled = true
-                    val estadoCerebro = if (cerebroIA != null) "Cerebro ACTIVO 🧠 (CPU)" else "Cerebro DESCONECTADO (Falta .bin)"
-                    tvResult.text = "Whisper Listo 👂.\n$estadoCerebro\n\nPresiona Grabar."
+                    val estado = if (cerebroIA != null) "Cerebro ACTIVO 🧠" else "Cerebro OFF ❌"
+                    tvResult.text = "Whisper listo 👂\n$estado\n\nPresiona GRABAR"
+                    window.decorView.setBackgroundColor(0xFF000000.toInt()) // Negro inicial
                 } else {
-                    tvResult.text = "Error: Whisper no pudo cargar."
+                    tvResult.text = "Error: Whisper no cargó"
                 }
             }
         }.start()
 
-        // Botón
         btnRecord.setOnClickListener {
-            if (checkPermissions()) {
-                iniciarGrabacion()
-            } else {
-                requestPermissions()
-            }
+            if (checkPermissions()) iniciarGrabacion()
+            else requestPermissions()
         }
     }
 
     private fun iniciarGrabacion() {
         btnRecord.isEnabled = false
         btnRecord.text = "Escuchando..."
-        tvResult.text = "Grabando audio..."
+
+        // Reinicio visual inmediato
+        runOnUiThread {
+            window.decorView.setBackgroundColor(0xFF000000.toInt())
+            tvResult.text = "Grabando... 🎙️"
+            tvResult.setTextColor(0xFFFFFFFF.toInt())
+        }
 
         Thread {
             try {
                 // 1. GRABAR
-                val audioData = grabarAudio(3)
+                val audioData = grabarAudio(3) // 3 segundos
+                if (audioData.isEmpty()) return@Thread
 
-                if (audioData.isNotEmpty()) {
-                    runOnUiThread { tvResult.text = "Transcribiendo..." }
+                runOnUiThread { tvResult.text = "Transcribiendo... 📝" }
 
-                    // 2. TRANSCRIBIR (Whisper C++)
-                    val textoUsuario = transcribeAudio(audioData)
-                    Log.d("SANA", "Usuario: $textoUsuario")
+                // 2. TRANSCRIBIR
+                val textoUsuario = transcribeAudio(audioData)
+                Log.d("SANA", "Usuario: $textoUsuario")
 
-                    runOnUiThread {
-                        tvResult.text = "Tú: $textoUsuario\n\nGenerando diagnóstico..."
-                    }
+                runOnUiThread { tvResult.text = "Tú: $textoUsuario\n\nAnalizando gravedad... 🩺" }
 
-                    // 3. PENSAR (MediaPipe)
-                    if (cerebroIA != null) {
-                        try {
+                // 3. PENSAR (GEMMA)
+                if (cerebroIA != null) {
+                    // --- PROMPT CORREGIDO (FORMATO GEMMA) ---
+                    // Usamos tokens especiales <start_of_turn> para que obedezca
+                    val prompt = "<start_of_turn>user\n" +
+                            "Eres un médico de triaje. Clasifica el riesgo del paciente en: [BAJO], [MEDIO] o [ALTO] y da un consejo muy breve.\n\n" +
+                            "Ejemplos:\n" +
+                            "Paciente: Tengo tos leve.\n" +
+                            "Respuesta: [BAJO] Hidrátate y descansa.\n\n" +
+                            "Paciente: Me duele mucho el pecho.\n" +
+                            "Respuesta: [ALTO] Ve a urgencias ahora mismo.\n\n" +
+                            "Paciente: $textoUsuario<end_of_turn>\n" +
+                            "<start_of_turn>model\n" +
+                            "Respuesta:" // Forzamos el inicio de la respuesta
 
-                            // AHORA (Con formato médico y estructura correcta):
-                            val promptEstructurado = "<start_of_turn>user\n" +
-                                    "Eres un asistente médico útil y conciso. Responde en español.\n" + // La Identidad
-                                    "Pregunta del paciente: $textoUsuario<end_of_turn>\n" +
-                                    "<start_of_turn>model\n" // Aquí le damos el turno para hablar
+                    val respuestaIA = cerebroIA!!.generateResponse(prompt)
 
-                            val respuesta = cerebroIA!!.generateResponse(promptEstructurado)
-
-                            runOnUiThread {
-                                tvResult.text = "Tú: $textoUsuario\n\n🤖 SanaIA: $respuesta"
-                            }
-                        } catch (e: Exception) {
-                            runOnUiThread { tvResult.text = "Error al pensar: ${e.message}" }
-                        }
-                    } else {
-                        runOnUiThread {
-                            tvResult.text = "Tú: $textoUsuario\n\n(Cerebro desconectado. Sube un archivo .bin)"
-                        }
-                    }
+                    // Procesar la respuesta y los colores
+                    mostrarResultado(textoUsuario, respuestaIA)
 
                 } else {
-                    runOnUiThread { tvResult.text = "No te escuché bien." }
+                    runOnUiThread { tvResult.text = "Error: Cerebro no disponible" }
                 }
+
             } catch (e: Exception) {
                 runOnUiThread { tvResult.text = "Error: ${e.message}" }
             } finally {
@@ -161,27 +150,65 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    // --- Gestión de Audio y Permisos (Igual que siempre) ---
+    private fun mostrarResultado(usuario: String, respuestaIA: String) {
+        runOnUiThread {
+            val usuarioLower = usuario.lowercase()
+            val respuestaNorm = respuestaIA.uppercase()
+
+            val colorRojo = 0xFFFF4444.toInt()
+            val colorAmarillo = 0xFFFFBB33.toInt()
+            val colorVerde = 0xFF99CC00.toInt()
+
+            // --- LÓGICA DE PRIORIDADES ---
+            // 1. Prioridad: PALABRAS CLAVE (Seguridad ante todo)
+            // Si el usuario dice algo grave, IGNORAMOS a la IA si dijo [BAJO]
+            val esEmergencia = usuarioLower.contains("pecho") ||
+                    usuarioLower.contains("corazón") ||
+                    usuarioLower.contains("sangre") ||
+                    usuarioLower.contains("respirar") ||
+                    usuarioLower.contains("desmayo")
+
+            val colorFondo = when {
+                esEmergencia -> colorRojo // Fuerza ROJO si hay palabras clave
+                respuestaNorm.contains("[ALTO]") -> colorRojo
+                respuestaNorm.contains("[MEDIO]") -> colorAmarillo
+                respuestaNorm.contains("[BAJO]") -> colorVerde
+                else -> colorVerde // Por defecto verde si no entiende nada
+            }
+
+            // Limpiamos el texto para que se vea bonito
+            var textoLimpio = respuestaIA
+                .replace("[ALTO]", "")
+                .replace("[MEDIO]", "")
+                .replace("[BAJO]", "")
+                .trim()
+
+            // Si forzamos la emergencia, agregamos advertencia
+            if (esEmergencia && !respuestaNorm.contains("[ALTO]")) {
+                textoLimpio = "⚠️ DETECTADO POSIBLE CASO GRAVE.\n(La IA sugirió: $textoLimpio)"
+            }
+
+            window.decorView.setBackgroundColor(colorFondo)
+            tvResult.text = "Tú: $usuario\n\n🤖 SanaIA: $textoLimpio"
+        }
+    }
+
+    // --- FUNCIONES DE AUDIO Y PERMISOS (Standard) ---
     private fun grabarAudio(durationSecs: Int): FloatArray {
         val sampleRate = 16000
-        val channelConfig = AudioFormat.CHANNEL_IN_MONO
-        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-        val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat) * 2
+        val bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return FloatArray(0)
 
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            return FloatArray(0)
-        }
-
-        val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, bufferSize)
+        val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)
         if (recorder.state != AudioRecord.STATE_INITIALIZED) return FloatArray(0)
 
-        val audioDataShort = ShortArray(sampleRate * durationSecs)
+        val data = ShortArray(sampleRate * durationSecs)
         recorder.startRecording()
-        recorder.read(audioDataShort, 0, audioDataShort.size)
+        recorder.read(data, 0, data.size)
         recorder.stop()
         recorder.release()
 
-        return FloatArray(audioDataShort.size) { i -> audioDataShort[i] / 32768.0f }
+        return FloatArray(data.size) { i -> data[i] / 32768.0f }
     }
 
     private fun checkPermissions() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -201,18 +228,9 @@ class MainActivity : AppCompatActivity() {
         val file = File(filesDir, assetName)
         if (!file.exists()) {
             try {
-                assets.open("models/$assetName").use { inputStream ->
-                    FileOutputStream(file).use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
-                }
+                assets.open("models/$assetName").use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
             } catch (e: Exception) { Log.e("SANA", "Error asset: $e") }
         }
         return file.absolutePath
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // No hay nada nativo que limpiar de Llama, MediaPipe se limpia solo o con close() si quisieras
     }
 }
