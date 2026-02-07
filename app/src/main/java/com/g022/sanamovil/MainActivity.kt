@@ -24,6 +24,22 @@ class MainActivity : AppCompatActivity() {
     private var isWhisperLoaded = false
     private var cerebroIA: LlmInference? = null
 
+    private val triggersEmergencia = listOf(
+        "infarto", "paro", "corazón", "arritmia",
+
+        // RESPIRATORIO
+        "asfixia", "ahogo", "no respira", "azul", // azul por cianosis
+
+        // NEUROLÓGICO
+        "desmayo", "inconsciente", "convulsion", "derrame", "acv", "despierta", // "no despierta"
+
+        // TRAUMA / SANGRE
+        "hemorragia", "sangrado", "sangre", "baleado", "disparo", "puñalada", "cuchillo", "quemadura",
+
+        // CRÍTICO / OTROS
+        "suicidio", "matarme", "veneno"
+    )
+
     // ===== WHISPER (C++) =====
     external fun loadModel(modelPath: String): Boolean
     external fun transcribeAudio(audioData: FloatArray): String
@@ -94,7 +110,6 @@ class MainActivity : AppCompatActivity() {
         btnRecord.isEnabled = false
         btnRecord.text = "Escuchando..."
 
-        // Reinicio visual inmediato
         runOnUiThread {
             window.decorView.setBackgroundColor(0xFF000000.toInt())
             tvResult.text = "Grabando... 🎙️"
@@ -104,7 +119,7 @@ class MainActivity : AppCompatActivity() {
         Thread {
             try {
                 // 1. GRABAR
-                val audioData = grabarAudio(3) // 3 segundos
+                val audioData = grabarAudio(3)
                 if (audioData.isEmpty()) return@Thread
 
                 runOnUiThread { tvResult.text = "Transcribiendo... 📝" }
@@ -113,27 +128,32 @@ class MainActivity : AppCompatActivity() {
                 val textoUsuario = transcribeAudio(audioData)
                 Log.d("SANA", "Usuario: $textoUsuario")
 
-                runOnUiThread { tvResult.text = "Tú: $textoUsuario\n\nAnalizando gravedad... 🩺" }
+                // --- BYPASS DE SEGURIDAD INMEDIATO ---
+                // Verificamos YA MISMO si es emergencia, sin esperar a la IA
+                val esEmergenciaDetectada = triggersEmergencia.any { textoUsuario.lowercase().contains(it) }
 
-                // 3. PENSAR (GEMMA)
+                if (esEmergenciaDetectada) {
+                    // ¡ACCIÓN INMEDIATA! No esperamos a la IA para alertar
+                    runOnUiThread {
+                        window.decorView.setBackgroundColor(0xFFFF4444.toInt()) // ROJO PURO
+                        tvResult.text = "🚨 ¡POSIBLE EMERGENCIA! 🚨\n\nLLAMA AL 911 INMEDIATAMENTE\n\n(Obteniendo detalles médicos...)"
+                    }
+                } else {
+                    // Si no es grave, mostramos el estado normal
+                    runOnUiThread { tvResult.text = "Tú: $textoUsuario\n\nAnalizando gravedad... 🩺" }
+                }
+
+                // 3. PENSAR (GEMMA) - Esto ocurre mientras la pantalla YA AVISÓ si era emergencia
                 if (cerebroIA != null) {
-                    // --- PROMPT CORREGIDO (FORMATO GEMMA) ---
-                    // Usamos tokens especiales <start_of_turn> para que obedezca
                     val prompt = "<start_of_turn>user\n" +
-                            "Eres un médico de triaje. Clasifica el riesgo del paciente en: [BAJO], [MEDIO] o [ALTO] y da un consejo muy breve.\n\n" +
-                            "Ejemplos:\n" +
-                            "Paciente: Tengo tos leve.\n" +
-                            "Respuesta: [BAJO] Hidrátate y descansa.\n\n" +
-                            "Paciente: Me duele mucho el pecho.\n" +
-                            "Respuesta: [ALTO] Ve a urgencias ahora mismo.\n\n" +
+                            "Eres un médico de triaje. Clasifica el riesgo en: [BAJO], [MEDIO] o [ALTO] y da un consejo breve.\n" +
                             "Paciente: $textoUsuario<end_of_turn>\n" +
-                            "<start_of_turn>model\n" +
-                            "Respuesta:" // Forzamos el inicio de la respuesta
+                            "<start_of_turn>model\nRespuesta:"
 
                     val respuestaIA = cerebroIA!!.generateResponse(prompt)
 
-                    // Procesar la respuesta y los colores
-                    mostrarResultado(textoUsuario, respuestaIA)
+                    // Pasamos el booleano 'esEmergenciaDetectada' para no volver a calcularlo
+                    mostrarResultado(textoUsuario, respuestaIA, esEmergenciaDetectada)
 
                 } else {
                     runOnUiThread { tvResult.text = "Error: Cerebro no disponible" }
@@ -150,46 +170,43 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
-    private fun mostrarResultado(usuario: String, respuestaIA: String) {
+    private fun mostrarResultado(usuario: String, respuestaIA: String, esEmergenciaPrevia: Boolean) {
         runOnUiThread {
-            val usuarioLower = usuario.lowercase()
             val respuestaNorm = respuestaIA.uppercase()
 
             val colorRojo = 0xFFFF4444.toInt()
             val colorAmarillo = 0xFFFFBB33.toInt()
             val colorVerde = 0xFF99CC00.toInt()
 
-            // --- LÓGICA DE PRIORIDADES ---
-            // 1. Prioridad: PALABRAS CLAVE (Seguridad ante todo)
-            // Si el usuario dice algo grave, IGNORAMOS a la IA si dijo [BAJO]
-            val esEmergencia = usuarioLower.contains("pecho") ||
-                    usuarioLower.contains("corazón") ||
-                    usuarioLower.contains("sangre") ||
-                    usuarioLower.contains("respirar") ||
-                    usuarioLower.contains("desmayo")
-
-            val colorFondo = when {
-                esEmergencia -> colorRojo // Fuerza ROJO si hay palabras clave
-                respuestaNorm.contains("[ALTO]") -> colorRojo
-                respuestaNorm.contains("[MEDIO]") -> colorAmarillo
-                respuestaNorm.contains("[BAJO]") -> colorVerde
-                else -> colorVerde // Por defecto verde si no entiende nada
-            }
-
-            // Limpiamos el texto para que se vea bonito
-            var textoLimpio = respuestaIA
+            // Limpieza del texto de la IA
+            val consejoIA = respuestaIA
                 .replace("[ALTO]", "")
                 .replace("[MEDIO]", "")
                 .replace("[BAJO]", "")
                 .trim()
 
-            // Si forzamos la emergencia, agregamos advertencia
-            if (esEmergencia && !respuestaNorm.contains("[ALTO]")) {
-                textoLimpio = "⚠️ DETECTADO POSIBLE CASO GRAVE.\n(La IA sugirió: $textoLimpio)"
-            }
+            // LÓGICA DE VISUALIZACIÓN
+            if (esEmergenciaPrevia) {
+                // --- MODO EMERGENCIA (Ya estaba en rojo, solo actualizamos el texto abajo) ---
+                window.decorView.setBackgroundColor(colorRojo)
+                tvResult.text = """
+                    🚨 ESTA ES UNA EMERGENCIA, LLAMA AL 911 INMEDIATAMENTE.
+                    
+                    ----------------
+                    Recomendación adicional (IA):
+                    $consejoIA
+                """.trimIndent()
 
-            window.decorView.setBackgroundColor(colorFondo)
-            tvResult.text = "Tú: $usuario\n\n🤖 SanaIA: $textoLimpio"
+            } else {
+                // --- MODO NORMAL (La IA decide el color) ---
+                val colorFondo = when {
+                    respuestaNorm.contains("[ALTO]") -> colorRojo
+                    respuestaNorm.contains("[MEDIO]") -> colorAmarillo
+                    else -> colorVerde
+                }
+                window.decorView.setBackgroundColor(colorFondo)
+                tvResult.text = "Tú: $usuario\n\n🤖 SanaIA: $consejoIA"
+            }
         }
     }
 
