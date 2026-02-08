@@ -3,26 +3,113 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp">
+    android:padding="0dp">
 
+    <!-- HEADER CON TÍTULO -->
     <TextView
-        android:id="@+id/tvResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:padding="20dp"/>
+
+    <!-- ÁREA DE RESULTADOS (ScrollView para texto largo) -->
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:text="Presiona grabar y habla..."
-        android:textSize="18sp"
-        android:gravity="center"
-        android:padding="16dp" />
+        android:padding="20dp">
 
-    <Button
-        android:id="@+id/btnRecord"
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="start">
+
+            <!-- ETIQUETA DE NIVEL (Verde/Amarillo/Rojo) -->
+            <TextView
+                android:id="@+id/tvNivel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Leve"
+                android:textSize="40sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:background="#4CAF50"
+                android:paddingLeft="50dp"
+                android:paddingRight="50dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="20dp"
+                android:layout_marginBottom="30dp"
+                android:visibility="gone"/>
+
+            <!-- TEXTO DE ANÁLISIS -->
+            <TextView
+                android:id="@+id/tvResult"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Presiona el botón para grabar tu consulta o escribe tus síntomas"
+                android:textSize="18sp"
+                android:lineSpacingExtra="4dp"
+                android:gravity="start"/>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- PANEL INFERIOR CON CONTROLES -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:text="GRABAR (3s)"
-        android:textSize="18sp"
-        android:layout_marginTop="24dp"
-        android:backgroundTint="#2196F3"/>
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp"
+        android:fitsSystemWindows="true">
+
+        <!-- CAMPO DE TEXTO CON BOTÓN DE ENVÍO -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="4dp"
+            android:layout_marginBottom="15dp"
+            android:elevation="2dp">
+
+            <EditText
+                android:id="@+id/etSintomas"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Escribe tus sintomas..."
+                android:textSize="16sp"
+                android:background="@android:color/transparent"
+                android:padding="15dp"
+                android:inputType="textMultiLine"
+                android:maxLines="3"
+                android:minHeight="50dp"/>
+
+            <Button
+                android:id="@+id/btnEnviar"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:text="➤"
+                android:textSize="24sp"
+                android:backgroundTint="#0099CC"
+                android:layout_gravity="center_vertical"
+                android:layout_marginLeft="8dp"/>
+        </LinearLayout>
+
+        <!-- BOTÓN DE GRABACIÓN -->
+        <Button
+            android:id="@+id/btnRecord"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="🎙Presiona para hablar (3s)"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:backgroundTint="#5C6BC0"
+            android:elevation="4dp"/>
+
+    </LinearLayout>
 
 </LinearLayout>

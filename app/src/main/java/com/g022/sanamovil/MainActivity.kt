@@ -7,7 +7,9 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -20,27 +22,21 @@ import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOp
 class MainActivity : AppCompatActivity() {
 
     private lateinit var btnRecord: Button
+    private lateinit var btnEnviar: Button
+    private lateinit var etSintomas: EditText
     private lateinit var tvResult: TextView
+    private lateinit var tvNivel: TextView
     private var isWhisperLoaded = false
     private var cerebroIA: LlmInference? = null
 
     private val triggersEmergencia = listOf(
         "infarto", "paro", "corazón", "arritmia",
-
-        // RESPIRATORIO
-        "asfixia", "ahogo", "no respira", "azul", // azul por cianosis
-
-        // NEUROLÓGICO
-        "desmayo", "inconsciente", "convulsion", "derrame", "acv", "despierta", // "no despierta"
-
-        // TRAUMA / SANGRE
+        "asfixia", "ahogo", "no respira", "azul",
+        "desmayo", "inconsciente", "convulsion", "derrame", "acv", "despierta",
         "hemorragia", "sangrado", "sangre", "baleado", "disparo", "puñalada", "cuchillo", "quemadura",
-
-        // CRÍTICO / OTROS
         "suicidio", "matarme", "veneno"
     )
 
-    // ===== WHISPER (C++) =====
     external fun loadModel(modelPath: String): Boolean
     external fun transcribeAudio(audioData: FloatArray): String
 
@@ -54,31 +50,31 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         btnRecord = findViewById(R.id.btnRecord)
+        btnEnviar = findViewById(R.id.btnEnviar)
+        etSintomas = findViewById(R.id.etSintomas)
         tvResult = findViewById(R.id.tvResult)
-        window.decorView.setBackgroundColor(0xFF1A1A1A.toInt())
+        tvNivel = findViewById(R.id.tvNivel)
 
-        tvResult.setTextColor(0xFFFFFFFF.toInt()) // Texto Blanco
-        tvResult.textSize = 18f
         btnRecord.isEnabled = false
+        btnEnviar.isEnabled = false
         tvResult.text = "Iniciando sistemas..."
+        tvNivel.visibility = View.GONE
 
         Thread {
-            // 1. CARGAR WHISPER
             val whisperPath = getModelPath("ggml-tiny.bin")
             if (File(whisperPath).exists()) {
                 isWhisperLoaded = loadModel(whisperPath)
             }
 
-            // 2. CARGAR GEMMA (MediaPipe)
             val modelName = "gemma-2b-it-cpu-int4.bin"
             val modelFile = File(filesDir, modelName)
 
             if (modelFile.exists()) {
                 try {
-                    // Configuración básica y estable
                     val options = LlmInferenceOptions.builder()
                         .setModelPath(modelFile.absolutePath)
-                        .setMaxTokens(512)
+                        .setMaxTokens(1500)      // <--- CAMBIO 1: Aumentar de 512 a 1500
+                        .setMaxTopK(40)
                         .build()
 
                     cerebroIA = LlmInference.createFromOptions(this, options)
@@ -91,9 +87,9 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isWhisperLoaded) {
                     btnRecord.isEnabled = true
-                    val estado = if (cerebroIA != null) "Cerebro ACTIVO 🧠" else "Cerebro OFF ❌"
-                    tvResult.text = "Whisper listo 👂\n$estado\n\nPresiona GRABAR"
-                    window.decorView.setBackgroundColor(0xFF000000.toInt()) // Negro inicial
+                    btnEnviar.isEnabled = true
+                    val estado = if (cerebroIA != null) "Sistema listo" else "IA no disponible"
+                    tvResult.text = "$estado\n\nPresiona el botón para grabar o escribe tus síntomas"
                 } else {
                     tvResult.text = "Error: Whisper no cargó"
                 }
@@ -104,55 +100,85 @@ class MainActivity : AppCompatActivity() {
             if (checkPermissions()) iniciarGrabacion()
             else requestPermissions()
         }
+
+        btnEnviar.setOnClickListener {
+            val textoIngresado = etSintomas.text.toString().trim()
+            if (textoIngresado.isNotEmpty()) {
+                procesarTexto(textoIngresado)
+                etSintomas.text.clear()
+            }
+        }
     }
 
-    private fun iniciarGrabacion() {
+    private fun procesarTexto(textoUsuario: String) {
+        btnEnviar.isEnabled = false
         btnRecord.isEnabled = false
-        btnRecord.text = "Escuchando..."
+        tvNivel.visibility = View.GONE
 
         runOnUiThread {
-            window.decorView.setBackgroundColor(0xFF000000.toInt())
-            tvResult.text = "Grabando... 🎙️"
-            tvResult.setTextColor(0xFFFFFFFF.toInt())
+            tvResult.text = "Analizando..."
         }
 
         Thread {
             try {
-                // 1. GRABAR
-                val audioData = grabarAudio(3)
-                if (audioData.isEmpty()) return@Thread
+                Log.d("SANA", "Usuario (texto): $textoUsuario")
 
-                runOnUiThread { tvResult.text = "Transcribiendo... 📝" }
-
-                // 2. TRANSCRIBIR
-                val textoUsuario = transcribeAudio(audioData)
-                Log.d("SANA", "Usuario: $textoUsuario")
-
-                // --- BYPASS DE SEGURIDAD INMEDIATO ---
-                // Verificamos YA MISMO si es emergencia, sin esperar a la IA
-                val esEmergenciaDetectada = triggersEmergencia.any { textoUsuario.lowercase().contains(it) }
-
-                if (esEmergenciaDetectada) {
-                    // ¡ACCIÓN INMEDIATA! No esperamos a la IA para alertar
-                    runOnUiThread {
-                        window.decorView.setBackgroundColor(0xFFFF4444.toInt()) // ROJO PURO
-                        tvResult.text = "🚨 ¡POSIBLE EMERGENCIA! 🚨\n\nLLAMA AL 911 INMEDIATAMENTE\n\n(Obteniendo detalles médicos...)"
-                    }
-                } else {
-                    // Si no es grave, mostramos el estado normal
-                    runOnUiThread { tvResult.text = "Tú: $textoUsuario\n\nAnalizando gravedad... 🩺" }
+                val esEmergenciaDetectada = triggersEmergencia.any {
+                    textoUsuario.lowercase().contains(it)
                 }
 
-                // 3. PENSAR (GEMMA) - Esto ocurre mientras la pantalla YA AVISÓ si era emergencia
+                if (esEmergenciaDetectada) {
+                    runOnUiThread {
+                        tvNivel.visibility = View.VISIBLE
+                        tvNivel.text = "EMERGENCIA"
+                        tvNivel.setBackgroundColor(0xFFFF4444.toInt())
+                        tvResult.text = "LLAMA AL 911 INMEDIATAMENTE\n\n(Obteniendo detalles médicos...)"
+                    }
+                } else {
+                    runOnUiThread {
+                        tvResult.text = "Analizando gravedad... 🩺"
+                    }
+                }
+
                 if (cerebroIA != null) {
                     val prompt = "<start_of_turn>user\n" +
-                            "Eres un médico de triaje. Clasifica el riesgo en: [BAJO], [MEDIO] o [ALTO] y da un consejo breve.\n" +
-                            "Paciente: $textoUsuario<end_of_turn>\n" +
-                            "<start_of_turn>model\nRespuesta:"
+                            "Actúa como un médico experto y riguroso. Tu objetivo es realizar un triage clínico basado en los síntomas del paciente.\n" +
+                            "\n" +
+                            "INSTRUCCIONES DE ANÁLISIS:\n" +
+                            "1. Evalúa la gravedad basándote en palabras clave de emergencia (dolor de pecho, asfixia, sangrado = Rojo).\n" +
+                            "2. Sé específico en las causas (usa terminología médica básica explicada).\n" +
+                            "3. Da recomendaciones prácticas y no genéricas.\n" +
+                            "4. Analiza EXCLUSIVAMENTE los síntomas que el paciente describe abajo.\n" +
+                            "5. NO inventes síntomas que el paciente no mencionó.\n" +
+                            "6. NO copies los ejemplos.\n" +
+                            "\n" +
+                            "Debes responder ESTRICTAMENTE con este formato:\n" +
+                            "Nivel: [Leve (Verde) / Moderado (Amarillo) / Severo (Rojo)]\n" +
+                            "Posibles causas: [Lista de 4-5 causas probables, de común a rara]\n" +
+                            "Recomendaciones: [3 pasos accionables y claros]\n" +
+                            "Buscar a un médico si: [Lista específica de signos de alarma para este síntoma]\n" +
+                            "\n" +
+                            "EJEMPLO 1 (Leve):\n" +
+                            "Paciente: \"Me pica mucho la piel del brazo y se puso roja después de tocar una planta.\"\n" +
+                            "Respuesta:\n" +
+                            "Nivel: Leve (Verde)\n" +
+                            "Posibles causas: Dermatitis de contacto, reacción alérgica leve, picadura de insecto, urticaria, irritación por savia.\n" +
+                            "Recomendaciones: Lave la zona con agua y jabón neutro inmediatamente, aplique compresas frías para reducir la inflamación y evite rascarse para prevenir infecciones.\n" +
+                            "Buscar a un médico si: La erupción se extiende a otras partes del cuerpo, hay hinchazón en la cara o dificultad para respirar.\n" +
+                            "\n" +
+                            "EJEMPLO 2 (Severo):\n" +
+                            "Paciente: \"Siento una presión fuerte en el pecho y me cuesta respirar.\"\n" +
+                            "Respuesta:\n" +
+                            "Nivel: Severo (Rojo)\n" +
+                            "Posibles causas: Infarto agudo de miocardio, angina de pecho, embolia pulmonar, crisis de ansiedad severa, neumotórax.\n" +
+                            "Recomendaciones: Siéntese y trate de mantener la calma, afloje la ropa ajustada. NO conduzca al hospital usted mismo.\n" +
+                            "Buscar a un médico si: ¡ATENCIÓN INMEDIATA! Llame a emergencias ya si el dolor irradia al brazo izquierdo o mandíbula, o si hay sudoración fría y desmayo.\n" +
+                            "\n" +
+                            "Paciente: \"$textoUsuario\"<end_of_turn>\n" +
+                            "<start_of_turn>model\n" +
+                            "Respuesta:"
 
                     val respuestaIA = cerebroIA!!.generateResponse(prompt)
-
-                    // Pasamos el booleano 'esEmergenciaDetectada' para no volver a calcularlo
                     mostrarResultado(textoUsuario, respuestaIA, esEmergenciaDetectada)
 
                 } else {
@@ -164,7 +190,99 @@ class MainActivity : AppCompatActivity() {
             } finally {
                 runOnUiThread {
                     btnRecord.isEnabled = true
-                    btnRecord.text = "GRABAR (3s)"
+                    btnEnviar.isEnabled = true
+                }
+            }
+        }.start()
+    }
+
+    private fun iniciarGrabacion() {
+        btnRecord.isEnabled = false
+        btnEnviar.isEnabled = false
+        btnRecord.text = "Escuchando..."
+        tvNivel.visibility = View.GONE
+
+        runOnUiThread {
+            tvResult.text = "Grabando... ️"
+        }
+
+        Thread {
+            try {
+                val audioData = grabarAudio(3)
+                if (audioData.isEmpty()) return@Thread
+
+                runOnUiThread { tvResult.text = "Transcribiendo... " }
+
+                val textoUsuario = transcribeAudio(audioData)
+                Log.d("SANA", "Usuario: $textoUsuario")
+
+                val esEmergenciaDetectada = triggersEmergencia.any {
+                    textoUsuario.lowercase().contains(it)
+                }
+
+                if (esEmergenciaDetectada) {
+                    runOnUiThread {
+                        tvNivel.visibility = View.VISIBLE
+                        tvNivel.text = "EMERGENCIA"
+                        tvNivel.setBackgroundColor(0xFFFF4444.toInt())
+                        tvResult.text = "LLAMA AL 911 INMEDIATAMENTE\n\n(Obteniendo detalles médicos...)"
+                    }
+                } else {
+                    runOnUiThread { tvResult.text = "Analizando gravedad... 🩺" }
+                }
+
+                if (cerebroIA != null) {
+                    val prompt = "<start_of_turn>user\n" +
+                            "Actúa como un médico experto y riguroso. Tu objetivo es realizar un triage clínico basado en los síntomas del paciente.\n" +
+                            "\n" +
+                            "INSTRUCCIONES DE ANÁLISIS:\n" +
+                            "1. Evalúa la gravedad basándote en palabras clave de emergencia (dolor de pecho, asfixia, sangrado = Rojo).\n" +
+                            "2. Sé específico en las causas (usa terminología médica básica explicada).\n" +
+                            "3. Da recomendaciones prácticas y no genéricas.\n" +
+                            "4. Analiza EXCLUSIVAMENTE los síntomas que el paciente describe abajo.\n" +
+                            "5. NO inventes síntomas que el paciente no mencionó.\n" +
+                            "6. NO copies los ejemplos.\n" +
+                            "\n" +
+                            "Debes responder ESTRICTAMENTE con este formato:\n" +
+                            "Nivel: [Leve (Verde) / Moderado (Amarillo) / Severo (Rojo)]\n" +
+                            "Posibles causas: [Lista de 4-5 causas probables, de común a rara]\n" +
+                            "Recomendaciones: [3 pasos accionables y claros]\n" +
+                            "Buscar a un médico si: [Lista específica de signos de alarma para este síntoma]\n" +
+                            "\n" +
+                            "EJEMPLO 1 (Leve):\n" +
+                            "Paciente: \"Me pica mucho la piel del brazo y se puso roja después de tocar una planta.\"\n" +
+                            "Respuesta:\n" +
+                            "Nivel: Leve (Verde)\n" +
+                            "Posibles causas: Dermatitis de contacto, reacción alérgica leve, picadura de insecto, urticaria, irritación por savia.\n" +
+                            "Recomendaciones: Lave la zona con agua y jabón neutro inmediatamente, aplique compresas frías para reducir la inflamación y evite rascarse para prevenir infecciones.\n" +
+                            "Buscar a un médico si: La erupción se extiende a otras partes del cuerpo, hay hinchazón en la cara o dificultad para respirar.\n" +
+                            "\n" +
+                            "EJEMPLO 2 (Severo):\n" +
+                            "Paciente: \"Siento una presión fuerte en el pecho y me cuesta respirar.\"\n" +
+                            "Respuesta:\n" +
+                            "Nivel: Severo (Rojo)\n" +
+                            "Posibles causas: Infarto agudo de miocardio, angina de pecho, embolia pulmonar, crisis de ansiedad severa, neumotórax.\n" +
+                            "Recomendaciones: Siéntese y trate de mantener la calma, afloje la ropa ajustada. NO conduzca al hospital usted mismo.\n" +
+                            "Buscar a un médico si: ¡ATENCIÓN INMEDIATA! Llame a emergencias ya si el dolor irradia al brazo izquierdo o mandíbula, o si hay sudoración fría y desmayo.\n" +
+                            "\n" +
+                            "Paciente: \"$textoUsuario\"<end_of_turn>\n" +
+                            "<start_of_turn>model\n" +
+                            "Respuesta:"
+
+                    val respuestaIA = cerebroIA!!.generateResponse(prompt)
+                    mostrarResultado(textoUsuario, respuestaIA, esEmergenciaDetectada)
+
+                } else {
+                    runOnUiThread { tvResult.text = "Error: Cerebro no disponible" }
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread { tvResult.text = "Error: ${e.message}" }
+            } finally {
+                runOnUiThread {
+                    btnRecord.isEnabled = true
+                    btnEnviar.isEnabled = true
+                    btnRecord.text = "Presiona para hablar (3S)"
                 }
             }
         }.start()
@@ -176,41 +294,40 @@ class MainActivity : AppCompatActivity() {
 
             val colorRojo = 0xFFFF4444.toInt()
             val colorAmarillo = 0xFFFFBB33.toInt()
-            val colorVerde = 0xFF99CC00.toInt()
+            val colorVerde = 0xFF4CAF50.toInt()
 
-            // Limpieza del texto de la IA
-            val consejoIA = respuestaIA
-                .replace("[ALTO]", "")
-                .replace("[MEDIO]", "")
-                .replace("[BAJO]", "")
-                .trim()
-
-            // LÓGICA DE VISUALIZACIÓN
             if (esEmergenciaPrevia) {
-                // --- MODO EMERGENCIA (Ya estaba en rojo, solo actualizamos el texto abajo) ---
-                window.decorView.setBackgroundColor(colorRojo)
+                tvNivel.visibility = View.VISIBLE
+                tvNivel.text = "EMERGENCIA"
+                tvNivel.setBackgroundColor(colorRojo)
                 tvResult.text = """
-                    🚨 ESTA ES UNA EMERGENCIA, LLAMA AL 911 INMEDIATAMENTE.
+                    LLAMA AL 911 INMEDIATAMENTE
                     
-                    ----------------
-                    Recomendación adicional (IA):
-                    $consejoIA
+                    Análisis clínico (IA):
+                    $respuestaIA
                 """.trimIndent()
 
             } else {
-                // --- MODO NORMAL (La IA decide el color) ---
-                val colorFondo = when {
-                    respuestaNorm.contains("[ALTO]") -> colorRojo
-                    respuestaNorm.contains("[MEDIO]") -> colorAmarillo
-                    else -> colorVerde
+                val (colorFondo, nivelTexto) = when {
+                    respuestaNorm.contains("(ROJO)") || respuestaNorm.contains("SEVERO") ->
+                        Pair(colorRojo, "Severo")
+                    respuestaNorm.contains("(AMARILLO)") || respuestaNorm.contains("MODERADO") ->
+                        Pair(colorAmarillo, "Moderado")
+                    respuestaNorm.contains("(VERDE)") || respuestaNorm.contains("LEVE") ->
+                        Pair(colorVerde, "Leve")
+                    else -> Pair(colorVerde, "Leve")
                 }
-                window.decorView.setBackgroundColor(colorFondo)
-                tvResult.text = "Tú: $usuario\n\n🤖 SanaIA: $consejoIA"
+
+                tvNivel.visibility = View.VISIBLE
+                tvNivel.text = nivelTexto
+                tvNivel.setBackgroundColor(colorFondo)
+
+                val textoLimpio = respuestaIA.replace("Respuesta:", "").trim()
+                tvResult.text = textoLimpio
             }
         }
     }
 
-    // --- FUNCIONES DE AUDIO Y PERMISOS (Standard) ---
     private fun grabarAudio(durationSecs: Int): FloatArray {
         val sampleRate = 16000
         val bufferSize = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2
@@ -245,8 +362,14 @@ class MainActivity : AppCompatActivity() {
         val file = File(filesDir, assetName)
         if (!file.exists()) {
             try {
-                assets.open("models/$assetName").use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
-            } catch (e: Exception) { Log.e("SANA", "Error asset: $e") }
+                assets.open("models/$assetName").use { input ->
+                    FileOutputStream(file).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SANA", "Error asset: $e")
+            }
         }
         return file.absolutePath
     }
