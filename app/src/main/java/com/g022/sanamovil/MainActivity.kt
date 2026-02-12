@@ -301,6 +301,8 @@ class MainActivity : AppCompatActivity() {
                 tvNivel.text = "EMERGENCIA"
                 tvNivel.setBackgroundColor(colorRojo)
                 tvResult.text = """
+                    $usuario
+                    
                     LLAMA AL 911 INMEDIATAMENTE
                     
                     Análisis clínico (IA):
@@ -323,7 +325,11 @@ class MainActivity : AppCompatActivity() {
                 tvNivel.setBackgroundColor(colorFondo)
 
                 val textoLimpio = respuestaIA.replace("Respuesta:", "").trim()
-                tvResult.text = textoLimpio
+                tvResult.text =  """$usuario
+                    |
+                    |$textoLimpio
+                    |
+                """.trimMargin()
             }
         }
     }
