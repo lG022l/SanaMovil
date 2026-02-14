@@ -280,41 +280,62 @@ class MainActivity : ComponentActivity() {
     private fun buildPrompt(textoUsuario: String): String {
         // Tu prompt original intacto
         return "<start_of_turn>user\n" +
-                "Actúa como un médico experto y riguroso. Tu objetivo es realizar un triage clínico basado en los síntomas del paciente.\n" +
+                "Actúa como un asistente de triaje médico de emergencia. Tu objetivo es clasificar el síntoma rápidamente.\n" +
                 "\n" +
-                "INSTRUCCIONES DE ANÁLISIS:\n" +
-                "1. Evalúa la gravedad basándote en palabras clave de emergencia (dolor de pecho, asfixia, sangrado = Rojo).\n" +
-                "2. Sé específico en las causas (usa terminología médica básica explicada).\n" +
-                "3. Da recomendaciones prácticas y no genéricas.\n" +
-                "4. Analiza EXCLUSIVAMENTE los síntomas que el paciente describe abajo.\n" +
-                "5. NO inventes síntomas que el paciente no mencionó.\n" +
+                "REGLAS:\n" +
+                "1. Sé breve y directo.\n" +
+                "2. Prioriza la seguridad.\n" +
+                "3. Usa emojis para visualización rápida.\n" +
+                "4. Analiza EXCLUSIVAMENTE lo que el paciente escribe.\n" +
+                "5. NO inventes síntomas.\n" +
                 "6. NO copies los ejemplos.\n" +
                 "\n" +
                 "Debes responder ESTRICTAMENTE con este formato:\n" +
-                "Nivel: [Leve (Verde) / Moderado (Amarillo) / Severo (Rojo)]\n" +
-                "Posibles causas: [Lista de 4-5 causas probables, de común a rara]\n" +
-                "Recomendaciones: [3 pasos accionables y claros]\n" +
-                "Buscar a un médico si: [Lista específica de signos de alarma para este síntoma]\n" +
+                "NIVEL: [VERDE 🟢 / AMARILLO 🟡 / ROJO 🔴]\n" +
+                "SOSPECHA: [1 o 2 palabras clave]\n" +
+                "ACCIÓN: [La recomendación más importante]\n" +
                 "\n" +
-                "EJEMPLO 1 (Leve):\n" +
-                "Paciente: \"Me pica mucho la piel del brazo y se puso roja después de tocar una planta.\"\n" +
+                "---\n" +
+                "EJEMPLO 1:\n" +
+                "Paciente: \"Me duele el pecho y el brazo izquierdo, sudo frío.\"\n" +
                 "Respuesta:\n" +
-                "Nivel: Leve (Verde)\n" +
-                "Posibles causas: Dermatitis de contacto, reacción alérgica leve, picadura de insecto, urticaria, irritación por savia.\n" +
-                "Recomendaciones: Lave la zona con agua y jabón neutro inmediatamente, aplique compresas frías para reducir la inflamación y evite rascarse para prevenir infecciones.\n" +
-                "Buscar a un médico si: La erupción se extiende a otras partes del cuerpo, hay hinchazón en la cara o dificultad para respirar.\n" +
+                "NIVEL: ROJO 🔴\n" +
+                "SOSPECHA: Infarto Cardíaco\n" +
+                "ACCIÓN: Llamar a emergencias YA. No moverse.\n" +
                 "\n" +
-                "EJEMPLO 2 (Severo):\n" +
-                "Paciente: \"Siento una presión fuerte en el pecho y me cuesta respirar.\"\n" +
+                "EJEMPLO 2:\n" +
+                "Paciente: \"Me torcí el tobillo, duele un poco pero puedo caminar.\"\n" +
                 "Respuesta:\n" +
-                "Nivel: Severo (Rojo)\n" +
-                "Posibles causas: Infarto agudo de miocardio, angina de pecho, embolia pulmonar, crisis de ansiedad severa, neumotórax.\n" +
-                "Recomendaciones: Siéntese y trate de mantener la calma, afloje la ropa ajustada. NO conduzca al hospital usted mismo.\n" +
-                "Buscar a un médico si: ¡ATENCIÓN INMEDIATA! Llame a emergencias ya si el dolor irradia al brazo izquierdo o mandíbula, o si hay sudoración fría y desmayo.\n" +
+                "NIVEL: VERDE 🟢\n" +
+                "SOSPECHA: Esguince leve\n" +
+                "ACCIÓN: Hielo y reposo. Si empeora, ir al médico.\n" +
+                "\n" +
+                "EJEMPLO 3:\n" +
+                "Paciente: \"Tengo media cara paralizada y no puedo hablar bien de la nada.\"\n" +
+                "Respuesta:\n" +
+                "NIVEL: ROJO 🔴\n" +
+                "SOSPECHA: ACV / Ictus\n" +
+                "ACCIÓN: Correr a urgencias inmediatamente (Código Ictus).\n" +
+                "\n" +
+                "EJEMPLO 4:\n" +
+                "Paciente: \"Tengo placas de pus en la garganta y fiebre de 38.\"\n" +
+                "Respuesta:\n" +
+                "NIVEL: AMARILLO 🟡\n" +
+                "SOSPECHA: Amigdalitis bacteriana\n" +
+                "ACCIÓN: Ir al médico para valoración de antibióticos.\n" +
+                "\n" +
+                "EJEMPLO 5:\n" +
+                "Paciente: \"Me salió un sarpullido en la mano por tocar una planta.\"\n" +
+                "Respuesta:\n" +
+                "NIVEL: VERDE 🟢\n" +
+                "SOSPECHA: Dermatitis de contacto\n" +
+                "ACCIÓN: Lavar con agua y jabón. Crema hidratante.\n" +
+                "---\n" +
                 "\n" +
                 "Paciente: \"$textoUsuario\"<end_of_turn>\n" +
                 "<start_of_turn>model\n" +
-                "Respuesta:"
+                "Respuesta:";
+
 
     }
 }
