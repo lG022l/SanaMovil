@@ -291,7 +291,7 @@ class MainActivity : ComponentActivity() {
                 "6. NO copies los ejemplos.\n" +
                 "\n" +
                 "Debes responder ESTRICTAMENTE con este formato:\n" +
-                "NIVEL: [VERDE 🟢 / AMARILLO 🟡 / ROJO 🔴]\n" +
+                "NIVEL: [LEVE / MODERADO / EMERGENCIA]\n" +
                 "SOSPECHA: [1 o 2 palabras clave]\n" +
                 "ACCIÓN: [La recomendación más importante]\n" +
                 "\n" +
@@ -299,35 +299,35 @@ class MainActivity : ComponentActivity() {
                 "EJEMPLO 1:\n" +
                 "Paciente: \"Me duele el pecho y el brazo izquierdo, sudo frío.\"\n" +
                 "Respuesta:\n" +
-                "NIVEL: ROJO 🔴\n" +
+                "NIVEL: EMERGENCIA\n" +
                 "SOSPECHA: Infarto Cardíaco\n" +
                 "ACCIÓN: Llamar a emergencias YA. No moverse.\n" +
                 "\n" +
                 "EJEMPLO 2:\n" +
                 "Paciente: \"Me torcí el tobillo, duele un poco pero puedo caminar.\"\n" +
                 "Respuesta:\n" +
-                "NIVEL: VERDE 🟢\n" +
+                "NIVEL: LEVE\n" +
                 "SOSPECHA: Esguince leve\n" +
                 "ACCIÓN: Hielo y reposo. Si empeora, ir al médico.\n" +
                 "\n" +
                 "EJEMPLO 3:\n" +
                 "Paciente: \"Tengo media cara paralizada y no puedo hablar bien de la nada.\"\n" +
                 "Respuesta:\n" +
-                "NIVEL: ROJO 🔴\n" +
+                "NIVEL: EMERGENCIA\n" +
                 "SOSPECHA: ACV / Ictus\n" +
                 "ACCIÓN: Correr a urgencias inmediatamente (Código Ictus).\n" +
                 "\n" +
                 "EJEMPLO 4:\n" +
-                "Paciente: \"Tengo placas de pus en la garganta y fiebre de 38.\"\n" +
+                "Paciente: \"Tengo flemas en la garganta y fiebre de 38.\"\n" +
                 "Respuesta:\n" +
-                "NIVEL: AMARILLO 🟡\n" +
+                "NIVEL: MODERADO\n" +
                 "SOSPECHA: Amigdalitis bacteriana\n" +
                 "ACCIÓN: Ir al médico para valoración de antibióticos.\n" +
                 "\n" +
                 "EJEMPLO 5:\n" +
-                "Paciente: \"Me salió un sarpullido en la mano por tocar una planta.\"\n" +
+                "Paciente: \"Tengo irritada la piel por tocar una planta.\"\n" +
                 "Respuesta:\n" +
-                "NIVEL: VERDE 🟢\n" +
+                "NIVEL: LEVE\n" +
                 "SOSPECHA: Dermatitis de contacto\n" +
                 "ACCIÓN: Lavar con agua y jabón. Crema hidratante.\n" +
                 "---\n" +
