@@ -19,11 +19,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Bloodtype
+import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
@@ -57,6 +61,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.Monitor
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.graphics.vector.ImageVector
 
 // --- VIEWMODEL: Maneja el estado de la UI y la lógica de negocio ---
 class SanaViewModel : ViewModel() {
@@ -584,10 +593,11 @@ fun UserProfileScreen(onDismiss: () -> Unit) {
                 )
             )
 
-            // 2. Contenido del Perfil
+            // 2. Contenido del Perfil (SCROLLEABLE)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -608,7 +618,6 @@ fun UserProfileScreen(onDismiss: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
 
-
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // Tarjeta de Datos Médicos
@@ -619,21 +628,90 @@ fun UserProfileScreen(onDismiss: () -> Unit) {
                     )
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        ProfileItem(label = "Género", value = "Masculino")
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        ProfileItem(label = "Edad", value = "24 años")
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        ProfileItem(label = "Tipo Sanguíneo", value = "O+")
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        ProfileItem(label = "Peso", value = "72 kg")
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        ProfileItem(label = "Estatura", value = "1.75 m")
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        ProfileItem(label = "Alergias", value = "Ninguna conocida", isAlert = false)
+                        // Primera fila
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            VitalSignIndicator(
+                                icon = Icons.Default.Person,
+                                label = "Género",
+                                value = "M",
+                                color = Color(0xFFFFFFFF),
+                                progress = 1f,
+                                normalRange = "Masculino"
+                            )
+
+                            VitalSignIndicator(
+                                icon = Icons.Default.Cake,
+                                label = "Edad",
+                                value = "24",
+                                unit = "años",
+                                color = Color(0xFFEC4899),
+                                progress = 1f,
+                                normalRange = "---"
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Segunda fila
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            VitalSignIndicator(
+                                icon = Icons.Default.Height,
+                                label = "Estatura",
+                                value = "1.75",
+                                unit = "m",
+                                color = Color(0xFF3B82F6),
+                                progress = 1f,
+                                normalRange = "---"
+                            )
+
+
+                            VitalSignIndicator(
+                                icon = Icons.Default.Monitor,
+                                label = "Peso",
+                                value = "72",
+                                unit = "kg",
+                                color = Color(0xFF10B981),
+                                progress = 0.72f,
+                                normalRange = "60-90 kg"
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Tercera fila
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            VitalSignIndicator(
+                                icon = Icons.Default.Bloodtype,
+                                label = "Tipo Sanguíneo",
+                                value = "O+",
+                                color = Color(0xFFEF4444),
+                                progress = 1f,
+                                normalRange = "A, B, AB, O"
+                            )
+
+                            VitalSignIndicator(
+                                icon = Icons.Default.HealthAndSafety,
+                                label = "Alergias",
+                                value = "0",
+                                color = Color(0xFF14B8A6),
+                                progress = 1f,
+                                normalRange = "Ninguna conocida",
+                                isAlert = false
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(1f)) // Empuja el botón al final
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // Botón Editar (Sin funcionalidad real)
                 Button(
@@ -670,21 +748,123 @@ fun ProfileItem(label: String, value: String, isAlert: Boolean = false) {
     }
 }
 
+@Composable
+fun VitalSignIndicator(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    unit: String = "",
+    color: Color,
+    progress: Float,
+    normalRange: String,
+    isAlert: Boolean = false
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(160.dp)
+    ) {
+        // Ícono y etiqueta
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(bottom = 12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = color,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        // Indicador circular
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(120.dp)
+        ) {
+            // Círculo de fondo
+            CircularProgressIndicator(
+                progress = 1f,
+                modifier = Modifier.size(120.dp),
+                color = color.copy(alpha = 0.1f),
+                strokeWidth = 8.dp,
+                trackColor = Color.Transparent
+            )
+
+            // Círculo de progreso
+            CircularProgressIndicator(
+                progress = progress,
+                modifier = Modifier.size(120.dp),
+                color = color,
+                strokeWidth = 8.dp,
+                trackColor = Color.Transparent
+            )
+
+            // Valor central
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (unit.isNotEmpty()) {
+                    Text(
+                        text = unit,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        }
+
+        // Rango normal
+        Row(
+            modifier = Modifier.padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = if (isAlert) Color(0xFFEF4444) else color,
+                        shape = CircleShape
+                    )
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = normalRange,
+                style = MaterialTheme.typography.bodySmall,
+                color = color,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
 // --- TEMA SIMPLE ---
 @Composable
 fun SanaAppTheme(content: @Composable () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
     val colorScheme = if (darkTheme) {
         darkColorScheme(
-            primary = Color(0xF790CAF9),
-            secondary = Color(0xFFCE93D8),
+            primary = Color(0xFF47FA4A),
+            secondary = Color(0xFF22B424),
             background = Color(0xFF121212),
             surface = Color(0xFF1E1E1E)
         )
     } else {
         lightColorScheme(
-            primary = Color(0xFF1976D2),
-            secondary = Color(0xFF7B1FA2),
+            primary = Color(0xFF22B424),
+            secondary = Color(0xFF188F1A),
             background = Color(0xFFFFFFFF),
             surface = Color(0xFFF5F5F5)
         )
