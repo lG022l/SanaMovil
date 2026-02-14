@@ -132,7 +132,7 @@ class MainActivity : ComponentActivity() {
         "infarto", "paro", "corazón", "arritmia", "asfixia", "ahogo", "no respira", "azul",
         "desmayo", "inconsciente", "convulsion", "derrame", "acv", "despierta",
         "hemorragia", "sangrado", "sangre", "baleado", "disparo", "puñalada", "cuchillo", "quemadura",
-        "suicidio", "matarme", "veneno"
+        "suicidio", "matarme", "veneno", "brazo izquierdo"
     )
 
 
