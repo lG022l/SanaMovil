@@ -542,8 +542,7 @@ fun InputArea(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .imePadding(), // Ajuste para el teclado
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextField(
@@ -658,7 +657,7 @@ fun UserProfileScreen(onDismiss: () -> Unit) {
                                 icon = Icons.Default.Person,
                                 label = "Género",
                                 value = "M",
-                                color = Color(0xFFFFFFFF),
+                                color = Color(0xFF818181),
                                 progress = 1f,
                                 normalRange = "Masculino"
                             )
