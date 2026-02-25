@@ -38,20 +38,19 @@ fun RegisterScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val primaryColor = Color(0xFFAA3052)
     val textColor = Color(0xFF000000)
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Registro", color = primaryColor) },
+                title = { Text("Registro", color = MaterialTheme.colorScheme.primary) },
                 navigationIcon = {
                     IconButton(onClick = { onBackToLogin() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Volver", tint = primaryColor)
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Volver", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }
@@ -60,7 +59,7 @@ fun RegisterScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color.White)
+                .background(MaterialTheme.colorScheme.background)
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = {
                         focusManager.clearFocus()
@@ -76,13 +75,13 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = nombre,
                 onValueChange = { nombre = it },
-                label = { Text("Nombre", color = primaryColor) },
+                label = { Text("Nombre", color = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primaryColor,
-                    unfocusedBorderColor = primaryColor,
-                    cursorColor = primaryColor,
-                    focusedLabelColor = primaryColor
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary
                 ),
                 textStyle = TextStyle(color = textColor),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
@@ -93,13 +92,13 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = apellidoPaterno,
                 onValueChange = { apellidoPaterno = it },
-                label = { Text("Apellido paterno", color = primaryColor) },
+                label = { Text("Apellido paterno", color = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primaryColor,
-                    unfocusedBorderColor = primaryColor,
-                    cursorColor = primaryColor,
-                    focusedLabelColor = primaryColor
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary
                 ),
                 textStyle = TextStyle(color = textColor),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
@@ -110,13 +109,13 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = apellidoMaterno,
                 onValueChange = { apellidoMaterno = it },
-                label = { Text("Apellido materno", color = primaryColor) },
+                label = { Text("Apellido materno", color = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primaryColor,
-                    unfocusedBorderColor = primaryColor,
-                    cursorColor = primaryColor,
-                    focusedLabelColor = primaryColor
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary
                 ),
                 textStyle = TextStyle(color = textColor),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
@@ -128,13 +127,13 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = correo,
                 onValueChange = { correo = it },
-                label = { Text("Correo electrónico", color = primaryColor) },
+                label = { Text("Correo electrónico", color = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primaryColor,
-                    unfocusedBorderColor = primaryColor,
-                    cursorColor = primaryColor,
-                    focusedLabelColor = primaryColor
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary
                 ),
                 textStyle = TextStyle(color = textColor),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
@@ -146,14 +145,14 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = contraseña,
                 onValueChange = { contraseña = it },
-                label = { Text("Contraseña", color = primaryColor) },
+                label = { Text("Contraseña", color = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primaryColor,
-                    unfocusedBorderColor = primaryColor,
-                    cursorColor = primaryColor,
-                    focusedLabelColor = primaryColor
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary
                 ),
                 textStyle = TextStyle(color = textColor),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
@@ -164,14 +163,14 @@ fun RegisterScreen(
             OutlinedTextField(
                 value = confirmarContraseña,
                 onValueChange = { confirmarContraseña = it },
-                label = { Text("Confirmar contraseña", color = primaryColor) },
+                label = { Text("Confirmar contraseña", color = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primaryColor,
-                    unfocusedBorderColor = primaryColor,
-                    cursorColor = primaryColor,
-                    focusedLabelColor = primaryColor
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary
                 ),
                 textStyle = TextStyle(color = textColor),
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
@@ -193,7 +192,7 @@ fun RegisterScreen(
                     .fillMaxWidth()
                     .height(50.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = primaryColor,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White
                 ),
                 shape = MaterialTheme.shapes.medium
@@ -207,7 +206,7 @@ fun RegisterScreen(
                 onClick = { onBackToLogin() },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Cancelar y volver al inicio", color = primaryColor)
+                Text("Cancelar y volver al inicio", color = MaterialTheme.colorScheme.primary)
             }
 
             Spacer(modifier = Modifier.height(30.dp))

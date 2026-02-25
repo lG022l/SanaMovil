@@ -32,7 +32,7 @@ import com.g022.sanamovil.R
 
 @Composable
 fun LoginScreen(
-    onLoginClick: (String, String) -> Unit, // Pasamos el correo y contraseña a MainActivity
+    onLoginClick: (String, String) -> Unit,
     onRegisterClick: () -> Unit,
     onForgotPasswordClick: () -> Unit
 ) {
@@ -42,14 +42,14 @@ fun LoginScreen(
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
     // NOTA: Asegúrate de tener una imagen llamada 'logo' en tu carpeta res/drawable
-    val logoPainter = painterResource(id = R.drawable.logo)
+    val logoPainter = painterResource(id = R.drawable.logo4)
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
 
     // Color principal extraído para facilitar su cambio (Color tinto/vino)
-    val primaryColor = Color(0xFFAA3052)
+    //val primaryColor = Color(0xFFAA3099)
 
     Column(
         modifier = Modifier
@@ -62,9 +62,10 @@ fun LoginScreen(
                 })
             }
             .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFFfdfdfe), Color(0xFFfdfdfe))
-                )
+                //  Para que los colores sean especificamente unos --> brush = Brush.verticalGradient(
+                    MaterialTheme.colorScheme.background
+                  //  Para que los colores sean especificamente unos --> colors = listOf(Color(0xFFfdfdfe), Color(0xFFfdfdfe))
+               // )
             )
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -73,7 +74,7 @@ fun LoginScreen(
         Image(
             painter = logoPainter,
             contentDescription = "Logo de la app",
-            modifier = Modifier.size(150.dp)
+            modifier = Modifier.size(300.dp)
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -81,15 +82,15 @@ fun LoginScreen(
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
-            label = { Text("Correo electrónico", color = primaryColor) },
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = primaryColor) },
+            label = { Text("Correo electrónico", color = MaterialTheme.colorScheme.primary) },
+            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = primaryColor,
-                unfocusedBorderColor = primaryColor,
-                cursorColor = primaryColor,
-                focusedLabelColor = primaryColor
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedLabelColor = MaterialTheme.colorScheme.primary
             ),
-            textStyle = TextStyle(color = Color.Black),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next)
@@ -100,21 +101,21 @@ fun LoginScreen(
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
-            label = { Text("Contraseña", color = primaryColor) },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = primaryColor) },
+            label = { Text("Contraseña", color = MaterialTheme.colorScheme.primary) },
+            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             trailingIcon = {
                 val icon = if (showPassword) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
                 IconButton(onClick = { showPassword = !showPassword }) {
-                    Icon(imageVector = icon, contentDescription = null, tint = primaryColor)
+                    Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = primaryColor,
-                unfocusedBorderColor = primaryColor,
-                cursorColor = primaryColor,
-                focusedLabelColor = primaryColor
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.primary,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedLabelColor = MaterialTheme.colorScheme.primary
             ),
-            textStyle = TextStyle(color = Color.Black),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground),
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -126,7 +127,7 @@ fun LoginScreen(
         Button(
             onClick = { onLoginClick(email, password) },
             colors = ButtonDefaults.buttonColors(
-                containerColor = primaryColor,
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = Color.White
             ),
             modifier = Modifier
@@ -145,10 +146,11 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             TextButton(onClick = onRegisterClick) {
-                Text("¿No tienes una cuenta?\nRegístrate aquí", color = primaryColor)
+                Text("¿No tienes una cuenta?\nRegístrate aquí", color = MaterialTheme.colorScheme.primary)
             }
+
             TextButton(onClick = onForgotPasswordClick) {
-                Text("¿Olvidaste tu contraseña?", color = primaryColor)
+                Text("¿Olvidaste tu contraseña?", color = MaterialTheme.colorScheme.primary)
             }
         }
     }
