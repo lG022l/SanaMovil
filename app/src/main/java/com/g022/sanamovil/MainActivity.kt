@@ -19,6 +19,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import com.g022.sanamovil.Auth.LoginScreen
+import com.g022.sanamovil.Auth.RegisterScreen
+import com.g022.sanamovil.Home.SanaAppScreen
+import com.g022.sanamovil.Theme.SanaAppTheme
+import com.g022.sanamovil.ViewModel.SanaViewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+
 
 
 
@@ -45,20 +54,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Asegúrate de importar SanaAppTheme desde donde lo hayas puesto
             SanaAppTheme {
 
                 // 1. Iniciamos el controlador de navegación
-                val navController = androidx.navigation.compose.rememberNavController()
+                val navController = rememberNavController()
 
                 // 2. Configuramos las rutas
-                androidx.navigation.compose.NavHost(
+                NavHost(
                     navController = navController,
-                    startDestination = "login_screen" // Arrancamos en el login
+                    startDestination = "login_screen"
                 ) {
 
                     // Ruta 1: Pantalla de Login
-                    androidx.navigation.compose.composable("login_screen") {
+                    composable("login_screen") {
                         // Llama a tu función LoginScreen (asegúrate de importarla si está en otro paquete)
                         LoginScreen(
                             onLoginClick = { email, password ->
@@ -76,7 +84,7 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Ruta 2: Pantalla de Registro
-                    androidx.navigation.compose.composable("registro_screen") {
+                    composable("registro_screen") {
                             RegisterScreen(
                                 onRegisterClick = { correo, pass ->
                                     // Por ser demo, si le da registrar lo mandamos directo al login o a la app
@@ -93,7 +101,7 @@ class MainActivity : ComponentActivity() {
 
 
                     // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
-                    androidx.navigation.compose.composable("home_screen") {
+                    composable("home_screen") {
                         // Aquí llamamos a tu demo original, pasándole las funciones que necesita
                         SanaAppScreen(
                             onRecordRequest = { duration, callback -> grabarYProcesarAudio(duration, callback) },

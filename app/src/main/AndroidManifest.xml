@@ -16,7 +16,7 @@
         android:theme="@style/Theme.SanaMovil"
         tools:targetApi="31">
         <activity
-            android:name="com.g022.sanamovil.Auth.LoginScreen"
+            android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

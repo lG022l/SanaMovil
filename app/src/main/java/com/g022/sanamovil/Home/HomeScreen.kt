@@ -83,10 +83,12 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.g022.sanamovil.MainActivity
-import com.g022.sanamovil.SanaViewModel
 import com.g022.sanamovil.UiState
 import kotlinx.coroutines.launch
 import kotlin.text.ifEmpty
+import com.g022.sanamovil.ViewModel.SanaViewModel
+import com.g022.sanamovil.EmergencyLevel
+import androidx.compose.foundation.lazy.items
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
