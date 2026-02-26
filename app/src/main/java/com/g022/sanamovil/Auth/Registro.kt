@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -17,20 +18,23 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
-    onRegisterClick: (String, String) -> Unit, // Ahora podemos pasar el correo y contraseña si queremos
+    onRegisterClick: (String, String) -> Unit,
     onBackToLogin: () -> Unit
 ) {
     var nombre by remember { mutableStateOf("") }
     var apellidoPaterno by remember { mutableStateOf("") }
     var apellidoMaterno by remember { mutableStateOf("") }
-    var correo by remember { mutableStateOf("") } // NUEVO CAMPO
+    var correo by remember { mutableStateOf("") }
     var contraseña by remember { mutableStateOf("") }
     var confirmarContraseña by remember { mutableStateOf("") }
 
@@ -38,19 +42,27 @@ fun RegisterScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val textColor = Color(0xFF000000)
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Registro", color = MaterialTheme.colorScheme.primary) },
+                title = {
+                    Text(
+                        text = "Registro",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { onBackToLogin() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Volver", tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
@@ -67,137 +79,118 @@ fun RegisterScreen(
                     })
                 }
                 .verticalScroll(scrollState)
-                .padding(24.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
+            Text(
+                text = "Crea tu cuenta",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Text(
+                text = "Completa tus datos para comenzar",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 32.dp)
+            )
+
             // --- CAMPOS DE NOMBRE ---
-            OutlinedTextField(
+            RoundedInputField(
                 value = nombre,
                 onValueChange = { nombre = it },
-                label = { Text("Nombre", color = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary
-                ),
-                textStyle = TextStyle(color = textColor),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
+                placeholder = "Nombre",
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
+                )
             )
-            Spacer(modifier = Modifier.height(15.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
+            RoundedInputField(
                 value = apellidoPaterno,
                 onValueChange = { apellidoPaterno = it },
-                label = { Text("Apellido paterno", color = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary
-                ),
-                textStyle = TextStyle(color = textColor),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
+                placeholder = "Apellido paterno",
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
+                )
             )
-            Spacer(modifier = Modifier.height(15.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
+            RoundedInputField(
                 value = apellidoMaterno,
                 onValueChange = { apellidoMaterno = it },
-                label = { Text("Apellido materno", color = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary
-                ),
-                textStyle = TextStyle(color = textColor),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
+                placeholder = "Apellido materno",
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
+                )
             )
-            Spacer(modifier = Modifier.height(15.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // --- CAMPO DE CORREO (NUEVO) ---
-            OutlinedTextField(
+            // --- CAMPO DE CORREO ---
+            RoundedInputField(
                 value = correo,
                 onValueChange = { correo = it },
-                label = { Text("Correo electrónico", color = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary
-                ),
-                textStyle = TextStyle(color = textColor),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
+                placeholder = "Correo electrónico",
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                )
             )
-            Spacer(modifier = Modifier.height(15.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // --- CAMPOS DE CONTRASEÑA ---
-            OutlinedTextField(
+            RoundedInputField(
                 value = contraseña,
                 onValueChange = { contraseña = it },
-                label = { Text("Contraseña", color = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary
-                ),
-                textStyle = TextStyle(color = textColor),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                singleLine = true
+                placeholder = "Contraseña",
+                isPassword = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next
+                )
             )
-            Spacer(modifier = Modifier.height(15.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
+            RoundedInputField(
                 value = confirmarContraseña,
                 onValueChange = { confirmarContraseña = it },
-                label = { Text("Confirmar contraseña", color = MaterialTheme.colorScheme.primary) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary
-                ),
-                textStyle = TextStyle(color = textColor),
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                singleLine = true
+                placeholder = "Confirmar contraseña",
+                isPassword = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                )
             )
             Spacer(modifier = Modifier.height(40.dp))
 
             // --- BOTONES ---
             Button(
                 onClick = {
-                    // Aquí podrías agregar una validación rápida antes de registrar
                     if (contraseña == confirmarContraseña && correo.isNotEmpty()) {
                         onRegisterClick(correo, contraseña)
                     } else {
-                        // Podrías mostrar un mensaje de error si no coinciden
+                        // TODO: Mostrar mensaje de error (ej. Snackbar)
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
+                    .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                shape = MaterialTheme.shapes.medium
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Registrarse")
+                Text(
+                    text = "Registrarse",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -206,10 +199,50 @@ fun RegisterScreen(
                 onClick = { onBackToLogin() },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Cancelar y volver al inicio", color = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = "Cancelar y volver al inicio",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
             }
 
             Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+}
+
+// Composable auxiliar para reutilizar el diseño de los campos de texto
+@Composable
+fun RoundedInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    isPassword: Boolean = false,
+    keyboardOptions: KeyboardOptions
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 2.dp
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
+                cursorColor = MaterialTheme.colorScheme.primary,
+            ),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
+            visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            keyboardOptions = keyboardOptions,
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+        )
     }
 }
