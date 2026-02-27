@@ -4,10 +4,17 @@
 // SOLO incluimos Whisper aquí para evitar conflictos
 #include "whisper/whisper.h"
 
+
+
 #define TAG "JNI_WHISPER"
 
 // Variable global solo para Whisper
 struct whisper_context *g_whisper_ctx = nullptr;
+
+
+// Variables globales para Llama
+struct llama_model *g_llama_model = nullptr;
+struct llama_context *g_llama_ctx = nullptr;
 
 extern "C" {
 

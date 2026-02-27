@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
-import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
+//import com.google.mediapipe.tasks.genai.llminference.LlmInference
+//import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -27,8 +27,7 @@ import com.g022.sanamovil.ViewModel.SanaViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-
-
+import com.google.mediapipe.tasks.genai.llminference.LlmInference
 
 
 // --- ACTIVITY PRINCIPAL ---
@@ -38,8 +37,15 @@ class MainActivity : ComponentActivity() {
     external fun loadModel(modelPath: String): Boolean
     external fun transcribeAudio(audioData: FloatArray): String
 
+    // NUEVAS Funciones nativas (JNI) para Llama (MedGemma)
+    external fun loadLlamaModel(modelPath: String): Boolean
+    external fun generateTextLlama(prompt: String): String
+
     companion object {
-        init { System.loadLibrary("sanamovil") }
+        init {
+            System.loadLibrary("sanamovil")
+            System.loadLibrary("sana_llama")
+        }
     }
 
     private val triggersEmergencia = listOf(
@@ -114,28 +120,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Lógica de inicialización de Modelos (movida a Corrutina en la UI para simplificar)
+    // Lógica de inicialización de Modelos
     suspend fun initModels(viewModel: SanaViewModel) = withContext(Dispatchers.IO) {
+        // 1. Cargar Whisper
         val whisperPath = getModelPath("ggml-tiny.bin")
         if (File(whisperPath).exists()) {
             viewModel.isWhisperLoaded = loadModel(whisperPath)
         }
 
-        val modelName = "gemma-2b-it-cpu-int4.bin"
-        val modelFile = File(filesDir, modelName)
+        // 2. Cargar Llama (MedGemma)
+        // PON AQUÍ EL NOMBRE EXACTO DE TU ARCHIVO .GGUF:
+        val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
+        val llamaPath = getModelPath(llamaModelName)
 
-        if (modelFile.exists()) {
-            try {
-                val options = LlmInferenceOptions.builder()
-                    .setModelPath(modelFile.absolutePath)
-                    .setMaxTokens(1500)
-                    .setMaxTopK(40)
-                    .build()
-                viewModel.cerebroIA = LlmInference.createFromOptions(this@MainActivity, options)
-                Log.d("SANA", "Cerebro cargado OK")
-            } catch (e: Exception) {
-                Log.e("SANA", "Error MediaPipe: ${e.message}")
+        if (File(llamaPath).exists()) {
+            viewModel.isLlamaLoaded = loadLlamaModel(llamaPath)
+            if(viewModel.isLlamaLoaded) {
+                Log.d("SANA", "Cerebro Llama (MedGemma) cargado OK")
+            } else {
+                Log.e("SANA", "Falló la carga de Llama en C++")
             }
+        } else {
+            Log.e("SANA", "No se encontró el archivo del modelo en assets")
         }
     }
 
@@ -158,15 +164,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // 2. Inferencia LLM
-                if (viewModel.cerebroIA != null) {
+                if (viewModel.isLlamaLoaded) { // Usamos el nuevo flag del ViewModel
                     val prompt = buildPrompt(textoUsuario)
-                    val respuestaIA = viewModel.cerebroIA!!.generateResponse(prompt)
+
+                    // Llamamos a nuestra nueva función de C++
+                    val respuestaIA = generateTextLlama(prompt)
 
                     runOnUiThread {
                         determinarNivelYMostrar(respuestaIA, esEmergencia, textoUsuario, viewModel)
                     }
                 } else {
-                    runOnUiThread { viewModel.setLoading(false, "Error: IA no disponible") }
+                    runOnUiThread { viewModel.setLoading(false, "Error: Modelo Llama no cargado") }
                 }
 
             } catch (e: Exception) {
@@ -242,65 +250,65 @@ class MainActivity : ComponentActivity() {
 
 
     private fun buildPrompt(textoUsuario: String): String {
-        // Tu prompt original intacto
         return "<start_of_turn>user\n" +
-                "Actúa como un asistente de triaje médico de emergencia. Tu objetivo es clasificar el síntoma rápidamente.\n" +
+                "Actúa como un asistente médico de triaje y atención prehospitalaria. Tu objetivo es evaluar clínicamente los síntomas y proporcionar un plan de acción detallado.\n" +
                 "\n" +
                 "REGLAS:\n" +
-                "1. Sé breve y directo.\n" +
-                "2. Prioriza la seguridad.\n" +
-                "3. Usa emojis para visualización rápida.\n" +
-                "4. Analiza EXCLUSIVAMENTE lo que el paciente escribe.\n" +
-                "5. NO inventes síntomas.\n" +
-                "6. NO copies los ejemplos.\n" +
+                "1. Prioriza la seguridad y la estabilización del paciente.\n" +
+                "2. Usa viñetas y listas numeradas para mayor claridad.\n" +
+                "3. Usa emojis (🔴, ⚠️) para resaltar señales de alarma e información crítica.\n" +
+                "4. Analiza EXCLUSIVAMENTE la información proporcionada por el paciente.\n" +
+                "5. NO inventes síntomas ni datos que no se hayan mencionado.\n" +
+                "6. Mantén un tono profesional, clínico y directo.\n" +
                 "\n" +
                 "Debes responder ESTRICTAMENTE con este formato:\n" +
                 "NIVEL: [LEVE / MODERADO / EMERGENCIA]\n" +
-                "SOSPECHA: [1 o 2 palabras clave]\n" +
-                "ACCIÓN: [La recomendación más importante]\n" +
+                "[Diagnóstico principal o sospecha clínica]\n" +
+                "\n" +
+                "EVALUACIÓN:\n" +
+                "- [Análisis de los síntomas y factores de riesgo presentados]\n" +
+                "\n" +
+                "PLAN RECOMENDADO:\n" +
+                "1. [Pasos a seguir numerados, priorizando lo más urgente]\n" +
+                "\n" +
+                "🔴 SEÑALES DE ALARMA A VIGILAR:\n" +
+                "- [Síntomas o signos vitales que indicarían un empeoramiento grave]\n" +
+                "\n" +
+                "⚠️ ADVERTENCIA: [Mensaje final de precaución o justificación de la urgencia]\n" +
                 "\n" +
                 "---\n" +
-                "EJEMPLO 1:\n" +
-                "Paciente: \"Me duele el pecho y el brazo izquierdo, sudo frío.\"\n" +
+                "EJEMPLO:\n" +
+                "Paciente: \"Paciente femenina, cuarta década de vida, embarazo de 11.2 semanas. Sangrado vaginal tipo manchado por 6 días. Dolor abdominal. Trabajo físico intenso durante la última semana. Orificio cervical externo cerrado.\"\n" +
                 "Respuesta:\n" +
                 "NIVEL: EMERGENCIA\n" +
-                "SOSPECHA: Infarto Cardíaco\n" +
-                "ACCIÓN: Llamar a emergencias YA. No moverse.\n" +
+                "Amenaza de aborto con factores de riesgo\n" +
                 "\n" +
-                "EJEMPLO 2:\n" +
-                "Paciente: \"Me torcí el tobillo, duele un poco pero puedo caminar.\"\n" +
-                "Respuesta:\n" +
-                "NIVEL: LEVE\n" +
-                "SOSPECHA: Esguince leve\n" +
-                "ACCIÓN: Hielo y reposo. Si empeora, ir al médico.\n" +
+                "EVALUACIÓN:\n" +
+                "- Sangrado vaginal de 6 días en primer trimestre con dolor abdominal\n" +
+                "- Trabajo físico intenso = factor de riesgo para aborto incompleto\n" +
+                "- Edad materna >35 = factor de riesgo adicional\n" +
                 "\n" +
-                "EJEMPLO 3:\n" +
-                "Paciente: \"Tengo media cara paralizada y no puedo hablar bien de la nada.\"\n" +
-                "Respuesta:\n" +
-                "NIVEL: EMERGENCIA\n" +
-                "SOSPECHA: ACV / Ictus\n" +
-                "ACCIÓN: Correr a urgencias inmediatamente (Código Ictus).\n" +
+                "PLAN RECOMENDADO:\n" +
+                "1. Monitoreo cada 2-4 horas (signos vitales + cantidad de sangrado)\n" +
+                "2. Cuantificar sangrado: número de toallas sanitarias/hora\n" +
+                "3. Establecer acceso venoso periférico preventivo\n" +
+                "4. Preparar plan de traslado de emergencia AHORA\n" +
+                "   - Identificar vehículo disponible\n" +
+                "   - Contactar hospital receptor si hay señal\n" +
+                "   - Tener líquidos IV listos para transporte\n" +
                 "\n" +
-                "EJEMPLO 4:\n" +
-                "Paciente: \"Tengo flemas en la garganta y fiebre de 38.\"\n" +
-                "Respuesta:\n" +
-                "NIVEL: MODERADO\n" +
-                "SOSPECHA: Amigdalitis bacteriana\n" +
-                "ACCIÓN: Ir al médico para valoración de antibióticos.\n" +
+                "🔴 SEÑALES DE ALARMA A VIGILAR:\n" +
+                "- Sangrado que empapa >1 toalla/hora\n" +
+                "- Taquicardia >100 lpm o PA sistólica <90 mmHg\n" +
+                "- Mareo, palidez, pérdida de consciencia\n" +
+                "- Fiebre >38°C\n" +
                 "\n" +
-                "EJEMPLO 5:\n" +
-                "Paciente: \"Tengo irritada la piel por tocar una planta.\"\n" +
-                "Respuesta:\n" +
-                "NIVEL: LEVE\n" +
-                "SOSPECHA: Dermatitis de contacto\n" +
-                "ACCIÓN: Lavar con agua y jabón. Crema hidratante.\n" +
+                "⚠️ ADVERTENCIA: Con sangrado de 6 días y dolor progresivo, el riesgo de evolución a aborto incompleto con hemorragia es SIGNIFICATIVO. No esperar a que sea emergencia para planear traslado. Preparar logística de transporte inmediatamente.\n" +
                 "---\n" +
                 "\n" +
                 "Paciente: \"$textoUsuario\"<end_of_turn>\n" +
                 "<start_of_turn>model\n" +
-                "Respuesta:";
-
-
+                "Respuesta:\n"
     }
 }
 

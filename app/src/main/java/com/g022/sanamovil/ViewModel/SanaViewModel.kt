@@ -13,7 +13,10 @@ class SanaViewModel : ViewModel() {
     var uiState by mutableStateOf(UiState())
         private set
 
-    var cerebroIA: LlmInference? = null
+    // var cerebroIA: LlmInference? = null
+
+    // AGREGA ESTA NUEVA LÍNEA:
+    var isLlamaLoaded = false
     var isWhisperLoaded = false
 
     // Historial ficticio para el menú lateral

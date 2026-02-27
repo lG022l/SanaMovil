@@ -12,29 +12,54 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -pthread")
 # Apagamos tests y ejemplos para que compile rápido
 set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-
+set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 # 3. AGREGAR LOS SUB-PROYECTOS
-# Importante: Los nombres deben coincidir con tus carpetas en 'cpp'
+# Importante: Los nombres coinciden con tus carpetas en 'cpp'
 add_subdirectory(whisper)
+add_subdirectory(llama.cpp)
 
-# 4. TU LIBRERÍA PRINCIPAL
+# ==========================================
+# 4. LIBRERÍA 1: WHISPER (sanamovil)
+# ==========================================
 add_library(
-        ${CMAKE_PROJECT_NAME}
+        sanamovil
         SHARED
-        native-lib.cpp      # Archivo 1 (Whisper)
+        native-lib.cpp      # Archivo dedicado EXCLUSIVAMENTE a Whisper
 )
 
-# 5. INCLUDES (Para que encuentre los headers .h)
 target_include_directories(
-        ${CMAKE_PROJECT_NAME} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}       # Para poder hacer "whisper/whisper.h"
+        sanamovil PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/whisper
 )
 
-# 6. ENLACE FINAL
 target_link_libraries(
-        ${CMAKE_PROJECT_NAME}
+        sanamovil
         android
         log
         whisper
+)
+
+# ==========================================
+# 5. LIBRERÍA 2: LLAMA (sana_llama)
+# ==========================================
+add_library(
+        sana_llama
+        SHARED
+        llama-lib.cpp      # Archivo dedicado EXCLUSIVAMENTE a Llama
+)
+
+target_include_directories(
+        sana_llama PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp/include       # Para encontrar llama.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp/ggml/include  # Para encontrar ggml.h
+)
+
+target_link_libraries(
+        sana_llama
+        android
+        log
+        llama              # El target interno de llama.cpp se llama 'llama'
 )
