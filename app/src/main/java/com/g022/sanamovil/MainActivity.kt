@@ -91,19 +91,19 @@ class MainActivity : ComponentActivity() {
 
                     // Ruta 2: Pantalla de Registro
                     composable("registro_screen") {
-                            RegisterScreen(
-                                onRegisterClick = { correo, pass ->
-                                    // Por ser demo, si le da registrar lo mandamos directo al login o a la app
-                                    navController.navigate("login_screen") {
-                                        popUpTo("login_screen") { inclusive = true }
-                                    }
-                                },
-                                onBackToLogin = {
-                                    // Esto lo regresa a la pantalla anterior (el login)
-                                    navController.popBackStack()
+                        RegisterScreen(
+                            onRegisterClick = { correo, pass ->
+                                // Por ser demo, si le da registrar lo mandamos directo al login o a la app
+                                navController.navigate("login_screen") {
+                                    popUpTo("login_screen") { inclusive = true }
                                 }
-                            )
-                        }
+                            },
+                            onBackToLogin = {
+                                // Esto lo regresa a la pantalla anterior (el login)
+                                navController.popBackStack()
+                            }
+                        )
+                    }
 
 
                     // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
@@ -200,8 +200,15 @@ class MainActivity : ComponentActivity() {
         if (esEmergenciaPrevia) {
             nivel = EmergencyLevel.EMERGENCIA
         } else {
-            if (respuestaNorm.contains("(ROJO)") || respuestaNorm.contains("SEVERO")) nivel = EmergencyLevel.SEVERO
-            else if (respuestaNorm.contains("(AMARILLO)") || respuestaNorm.contains("MODERADO")) nivel = EmergencyLevel.MODERADO
+            // Buscamos las palabras exactas que el prompt le exige a la IA
+            if (respuestaNorm.contains("EMERGENCIA")) {
+                nivel = EmergencyLevel.EMERGENCIA
+            } else if (respuestaNorm.contains("SEVERO") || respuestaNorm.contains("(ROJO)")) {
+                nivel = EmergencyLevel.SEVERO // Por si el modelo usa sinónimos
+            } else if (respuestaNorm.contains("MODERADO") || respuestaNorm.contains("(AMARILLO)")) {
+                nivel = EmergencyLevel.MODERADO
+            }
+            // Si no detecta ninguna, se queda en LEVE (el valor por defecto)
         }
 
         val textoFinal = if (esEmergenciaPrevia) {
@@ -210,6 +217,7 @@ class MainActivity : ComponentActivity() {
             "SÍNTOMAS: $textoUsuario\n\n$respuestaIA".replace("Respuesta:", "").trim()
         }
 
+        // Esto actualiza el estado en el ViewModel, lo cual debería refrescar tu UI en Compose
         viewModel.setResult(textoFinal, nivel)
     }
 
@@ -247,68 +255,31 @@ class MainActivity : ComponentActivity() {
     }
 
 
-
-
     private fun buildPrompt(textoUsuario: String): String {
-        return "<start_of_turn>user\n" +
-                "Actúa como un asistente médico de triaje y atención prehospitalaria. Tu objetivo es evaluar clínicamente los síntomas y proporcionar un plan de acción detallado.\n" +
-                "\n" +
-                "REGLAS:\n" +
-                "1. Prioriza la seguridad y la estabilización del paciente.\n" +
-                "2. Usa viñetas y listas numeradas para mayor claridad.\n" +
-                "3. Usa emojis (🔴, ⚠️) para resaltar señales de alarma e información crítica.\n" +
-                "4. Analiza EXCLUSIVAMENTE la información proporcionada por el paciente.\n" +
-                "5. NO inventes síntomas ni datos que no se hayan mencionado.\n" +
-                "6. Mantén un tono profesional, clínico y directo.\n" +
-                "\n" +
-                "Debes responder ESTRICTAMENTE con este formato:\n" +
-                "NIVEL: [LEVE / MODERADO / EMERGENCIA]\n" +
-                "[Diagnóstico principal o sospecha clínica]\n" +
-                "\n" +
-                "EVALUACIÓN:\n" +
-                "- [Análisis de los síntomas y factores de riesgo presentados]\n" +
-                "\n" +
-                "PLAN RECOMENDADO:\n" +
-                "1. [Pasos a seguir numerados, priorizando lo más urgente]\n" +
-                "\n" +
-                "🔴 SEÑALES DE ALARMA A VIGILAR:\n" +
-                "- [Síntomas o signos vitales que indicarían un empeoramiento grave]\n" +
-                "\n" +
-                "⚠️ ADVERTENCIA: [Mensaje final de precaución o justificación de la urgencia]\n" +
-                "\n" +
-                "---\n" +
-                "EJEMPLO:\n" +
-                "Paciente: \"Paciente femenina, cuarta década de vida, embarazo de 11.2 semanas. Sangrado vaginal tipo manchado por 6 días. Dolor abdominal. Trabajo físico intenso durante la última semana. Orificio cervical externo cerrado.\"\n" +
-                "Respuesta:\n" +
-                "NIVEL: EMERGENCIA\n" +
-                "Amenaza de aborto con factores de riesgo\n" +
-                "\n" +
-                "EVALUACIÓN:\n" +
-                "- Sangrado vaginal de 6 días en primer trimestre con dolor abdominal\n" +
-                "- Trabajo físico intenso = factor de riesgo para aborto incompleto\n" +
-                "- Edad materna >35 = factor de riesgo adicional\n" +
-                "\n" +
-                "PLAN RECOMENDADO:\n" +
-                "1. Monitoreo cada 2-4 horas (signos vitales + cantidad de sangrado)\n" +
-                "2. Cuantificar sangrado: número de toallas sanitarias/hora\n" +
-                "3. Establecer acceso venoso periférico preventivo\n" +
-                "4. Preparar plan de traslado de emergencia AHORA\n" +
-                "   - Identificar vehículo disponible\n" +
-                "   - Contactar hospital receptor si hay señal\n" +
-                "   - Tener líquidos IV listos para transporte\n" +
-                "\n" +
-                "🔴 SEÑALES DE ALARMA A VIGILAR:\n" +
-                "- Sangrado que empapa >1 toalla/hora\n" +
-                "- Taquicardia >100 lpm o PA sistólica <90 mmHg\n" +
-                "- Mareo, palidez, pérdida de consciencia\n" +
-                "- Fiebre >38°C\n" +
-                "\n" +
-                "⚠️ ADVERTENCIA: Con sangrado de 6 días y dolor progresivo, el riesgo de evolución a aborto incompleto con hemorragia es SIGNIFICATIVO. No esperar a que sea emergencia para planear traslado. Preparar logística de transporte inmediatamente.\n" +
-                "---\n" +
-                "\n" +
-                "Paciente: \"$textoUsuario\"<end_of_turn>\n" +
-                "<start_of_turn>model\n" +
-                "Respuesta:\n"
-    }
-}
+        return """
+        <start_of_turn>user
+        Como médico de triaje prehospitalario, evalúa basándote SOLO en los datos provistos. Prioriza la estabilización. Se lo más conciso posible.  Responde ESTRICTAMENTE con esta estructura exacta:
 
+        NIVEL: [LEVE / MODERADO / EMERGENCIA]
+        POSIBLE DIAGNOSTICO:
+        [Diagnóstico principal]
+
+        EVALUACIÓN:
+        - [Análisis clínico breve]
+
+        PLAN RECOMENDADO:
+        1. [Pasos urgentes, máximo 5]
+
+        🔴 SEÑALES DE ALARMA A VIGILAR:
+        - [Signos de empeoramiento]
+
+        ⚠️ ADVERTENCIA: [Riesgo principal]
+
+        Paciente: "$textoUsuario"<end_of_turn>
+        <start_of_turn>model
+        
+    """.trimIndent()
+    }
+
+
+}

@@ -17,15 +17,15 @@ fun SanaAppTheme(content: @Composable () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
     val colorScheme = if (darkTheme) {
         darkColorScheme(
-            primary = Color(0xFF47FA4A),
-            secondary = Color(0xFF22B424),
+            primary = Color(0xFF22BDC5),
+            secondary = Color(0xFF1A9298),
             background = Color(0xFF121212),
             surface = Color(0xFF1E1E1E)
         )
     } else {
         lightColorScheme(
-            primary = Color(0xFF22B424),
-            secondary = Color(0xFF188F1A),
+            primary = Color(0xFF22BDC5),
+            secondary = Color(0xFF1A9298),
             background = Color(0xFFFFFFFF),
             surface = Color(0xFFF5F5F5)
         )

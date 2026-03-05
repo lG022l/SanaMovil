@@ -264,14 +264,9 @@ fun SanaAppScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Image(
-                                painter = painterResource(id = R.drawable.logo2),
+                                painter = painterResource(id = R.drawable.logov3),
                                 contentDescription = "Logo SanaMovil",
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "SanaMovil",
-                                fontWeight = FontWeight.Light
+                                modifier = Modifier.size(150.dp)
                             )
                         }
                     },

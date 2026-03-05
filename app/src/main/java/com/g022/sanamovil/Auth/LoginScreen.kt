@@ -43,7 +43,7 @@ fun LoginScreen(
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
-    val logoPainter = painterResource(id = R.drawable.logo)
+    val logoPainter = painterResource(id = R.drawable.logov2)
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
@@ -72,7 +72,7 @@ fun LoginScreen(
             Image(
                 painter = logoPainter,
                 contentDescription = "Logo de la app",
-                modifier = Modifier.size(250.dp)
+                modifier = Modifier.size(300.dp)
             )
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -39,6 +39,7 @@ Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstrin
     llama_backend_init();
 
     llama_model_params model_params = llama_model_default_params();
+    model_params.n_gpu_layers = 99;
     g_llama_model = llama_model_load_from_file(model_path, model_params); // Nombre actualizado
 
     if (g_llama_model == nullptr) {
@@ -49,7 +50,7 @@ Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstrin
 
     llama_context_params ctx_params = llama_context_default_params();
     ctx_params.n_ctx = 2048;
-    g_llama_ctx = llama_init_from_model(g_llama_model, ctx_params); // Nombre actualizado
+    g_llama_ctx = llama_init_from_model(g_llama_model, ctx_params);
 
     env->ReleaseStringUTFChars(modelPathStr, model_path);
     return g_llama_ctx != nullptr ? JNI_TRUE : JNI_FALSE;
@@ -76,13 +77,13 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     tokens_list.resize(n_tokens);
 
     // PASO B: Preparar el Batch
-    if (n_tokens >= 2048) {
+    if (n_tokens >= 1024) {  // Ajustado al nuevo n_ctx
         env->ReleaseStringUTFChars(promptStr, prompt);
         return env->NewStringUTF("Error: El historial clínico es demasiado largo para ser procesado.");
     }
 
-    // Aumentamos el límite de 512 a 2048 para soportar tu nuevo prompt súper detallado
-    llama_batch batch = llama_batch_init(2048, 0, 1);
+    // Batch size reducido para mejor rendimiento
+    llama_batch batch = llama_batch_init(512, 0, 1);
     for (int i = 0; i < n_tokens; i++) {
         batch_add(batch, tokens_list[i], i, { 0 }, false);
     }
@@ -98,7 +99,7 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     // PASO D: Bucle de generación
     int n_cur = batch.n_tokens;
     int n_decode = 0;
-    const int max_tokens = 600;
+    const int max_tokens = 300;  // Reducido de 600 -> respuestas más concisas y rápidas
     std::string result_text = "";
 
     while (n_decode < max_tokens) {

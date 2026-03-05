@@ -20,6 +20,7 @@ set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(whisper)
 add_subdirectory(llama.cpp)
 
+
 # ==========================================
 # 4. LIBRERÍA 1: WHISPER (sanamovil)
 # ==========================================
@@ -63,3 +64,20 @@ target_link_libraries(
         log
         llama              # El target interno de llama.cpp se llama 'llama'
 )
+# 1. HABILITAR GPU VULKAN (Si llama.cpp lo soporta)
+option(GGML_VULKAN "Enable Vulkan backend" ON)
+
+# 2. FLAGS DE OPTIMIZACIÓN PARA ARM
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=armv8.2-a+fp16 -mtune=cortex-a76")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=armv8.2-a+fp16 -mtune=cortex-a76")
+
+# 3. HABILITAR NEON (SIMD para ARM)
+add_definitions(-DGGML_USE_ACCELERATE)
+add_definitions(-DGGML_USE_OPENMP)
+
+# 4. OPTIMIZACIONES ADICIONALES
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math -funroll-loops")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -ffast-math -funroll-loops")
+
+# 5. LINKEO DE THREADING
+find_package(Threads REQUIRED)
