@@ -15,6 +15,8 @@ import com.g022.sanamovil.engine.SymptomExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.g022.sanamovil.engine.TriageResult
+import com.g022.sanamovil.engine.ResponseLibrary
 
 class SanaViewModel : ViewModel() {
     var uiState by mutableStateOf(UiState())
@@ -40,17 +42,18 @@ class SanaViewModel : ViewModel() {
         uiState = uiState.copy(isLoading = isLoading, statusMessage = message)
     }
 
-    fun setResult(result: String, level: EmergencyLevel) {
+    fun setResult(resultObj: TriageResult, level: EmergencyLevel) {
         uiState = uiState.copy(
-            analysisResult = result,
+            triageResult = resultObj, // Guardamos el objeto completo para la auditoría y la UI
+            analysisResult = resultObj.llmExplanation, // Mantenemos la explicación para compatibilidad
             emergencyLevel = level,
-            isLoading = false
+            isLoading = false,
+            statusMessage = ""
         )
-        // Agregar al historial si hay un resultado válido
-        if (result.isNotEmpty()) {
-            val preview = result.take(30).replace("\n", " ") + "..."
-            recentQueries.add(0, preview)
-        }
+
+        // Agregar al historial usando la acción recomendada
+        val preview = "${resultObj.actionType.label} - ${resultObj.urgencyLevel.title}"
+        recentQueries.add(0, preview)
     }
 
     /**
@@ -149,28 +152,48 @@ class SanaViewModel : ViewModel() {
     fun submitWizardAndCalculate() {
         val temp = temporarySymptoms ?: return
 
-        // Fusionamos lo que extrajo el LLM con lo que el usuario puso explícitamente en el Wizard (Prioridad al Wizard)
         val finalSymptoms = temp.copy(
             age = uiState.wizardAge.toIntOrNull() ?: temp.age,
             intensity = uiState.wizardIntensity.toInt(),
-            isConscious = !uiState.hasLossOfConsciousness, // Si hubo pérdida, no está al 100% consciente
+            isConscious = !uiState.hasLossOfConsciousness,
             radiatingPain = uiState.hasRadiatingPain || temp.radiatingPain
         )
 
-        uiState = uiState.copy(showWizard = false) // Ocultamos el Wizard
+        uiState = uiState.copy(showWizard = false)
 
         viewModelScope.launch {
             setLoading(true, "Calculando nivel de riesgo...")
             withContext(Dispatchers.IO) {
-                // FASE 2 y 3 (Igual que en la Fase 7)
-                val clinicalRiskLevel = ruleEngine.evaluateSymptoms(finalSymptoms)
+
+                // AQUI ESTÁ LA MAGIA DE LA FASE 9
+                // 1. Obtenemos la evaluación que ahora incluye las reglas activadas (Auditoría)
+                val engineEval = ruleEngine.evaluateSymptoms(finalSymptoms)
+                val clinicalRiskLevel = engineEval.riskLevel
+                val triggeredRules = engineEval.triggeredRules
+
+                // 2. Generamos la explicación empática con el LLM
                 val explanationPrompt = explanationGenerator.buildExplanationPrompt(finalSymptoms, clinicalRiskLevel)
                 val rawExplanationFromLlama = generateWithLocalLlm(explanationPrompt)
                 val safeExplanation = explanationGenerator.validateAndFilterResponse(rawExplanationFromLlama)
+
+                // 3. Obtenemos los textos legales inmutables de nuestra biblioteca
+                val urgency = ResponseLibrary.mapRiskToUrgency(clinicalRiskLevel)
+
+                // 4. Armamos el paquete final blindado legalmente
+                val finalTriageResult = TriageResult(
+                    urgencyLevel = urgency,
+                    timeframe = ResponseLibrary.getTimeframe(urgency),
+                    actionType = ResponseLibrary.getActionType(urgency),
+                    standardMessage = ResponseLibrary.getStandardMessage(urgency),
+                    llmExplanation = safeExplanation,
+                    triggeredRules = triggeredRules
+                )
+
                 val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
 
                 withContext(Dispatchers.Main) {
-                    setResult(safeExplanation, emergencyLevelUi)
+                    // Enviamos todo el paquete a la UI
+                    setResult(finalTriageResult, emergencyLevelUi)
                 }
             }
         }

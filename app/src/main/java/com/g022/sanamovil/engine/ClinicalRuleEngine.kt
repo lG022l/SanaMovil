@@ -1,43 +1,52 @@
 package com.g022.sanamovil.engine
 
+// Nueva clase para devolver el resultado + la auditoría
+data class EngineEvaluation(
+    val riskLevel: RiskLevel,
+    val triggeredRules: List<String>
+)
+
 class ClinicalRuleEngine {
 
     /**
-     * Calcula el nivel de riesgo basado en un árbol de decisión determinista.
-     * Fuentes clínicas de referencia:
-     * - Protocolo START (Simple Triage and Rapid Treatment)
-     * - Sistema de Triage Manchester (MTS - Adaptación General)
+     * Calcula el nivel de riesgo y documenta qué reglas exactas se activaron.
      */
-    fun evaluateSymptoms(symptoms: StructuredSymptoms): RiskLevel {
+    fun evaluateSymptoms(symptoms: StructuredSymptoms): EngineEvaluation {
+        val rules = mutableListOf<String>()
 
         // REGLA 1: ROJO (Emergencia Vital - Atención Inmediata)
-        // Fuente Clínica: Protocolo START / Soporte Vital Básico
-        // Justificación: Vía aérea comprometida, shock hemorrágico o alteración severa del estado de alerta.
         if (!symptoms.isConscious || symptoms.hasSevereBleeding || symptoms.hasBreathingDifficulty) {
-            return RiskLevel.RED
+            if (!symptoms.isConscious) rules.add("Regla START: Paciente inconsciente o alteración severa del estado de alerta.")
+            if (symptoms.hasSevereBleeding) rules.add("Regla Hemorragia: Sangrado severo reportado.")
+            if (symptoms.hasBreathingDifficulty) rules.add("Regla Vía Aérea: Dificultad respiratoria crítica.")
+
+            return EngineEvaluation(RiskLevel.RED, rules)
         }
 
         // REGLA 2: NARANJA (Muy Urgente - < 15 min)
-        // Fuente Clínica: Guías AHA (American Heart Association) para dolor torácico / Escala analgésica visual (EVA > 8)
-        // Justificación: Posible Síndrome Coronario Agudo (IAM) o dolor insoportable.
         if ((symptoms.hasChestPain && symptoms.radiatingPain) || (symptoms.intensity ?: 0) >= 9) {
-            return RiskLevel.ORANGE
+            if (symptoms.hasChestPain && symptoms.radiatingPain) rules.add("Regla AHA: Dolor torácico con irradiación (Posible isquemia).")
+            if ((symptoms.intensity ?: 0) >= 9) rules.add("Regla EVA: Dolor de intensidad extrema (>=9).")
+
+            return EngineEvaluation(RiskLevel.ORANGE, rules)
         }
 
         // REGLA 3: AMARILLO (Urgencia - < 60 min)
-        // Fuente Clínica: MTS / Infección con respuesta sistémica o dolor moderado-severo.
         if (symptoms.hasHighFever || (symptoms.intensity ?: 0) in 6..8) {
-            return RiskLevel.YELLOW
+            if (symptoms.hasHighFever) rules.add("Regla Infección: Fiebre alta con posible respuesta sistémica.")
+            if ((symptoms.intensity ?: 0) in 6..8) rules.add("Regla EVA: Dolor moderado-severo (6-8).")
+
+            return EngineEvaluation(RiskLevel.YELLOW, rules)
         }
 
         // REGLA 4: VERDE (Urgencia Menor - < 120 min)
-        // Justificación: Dolor leve a moderado, sin signos de compromiso vital.
         if ((symptoms.intensity ?: 0) in 3..5) {
-            return RiskLevel.GREEN
+            rules.add("Regla EVA: Dolor leve a moderado (3-5) sin signos de compromiso vital.")
+            return EngineEvaluation(RiskLevel.GREEN, rules)
         }
 
         // REGLA 5: AZUL (No Urgente - < 240 min)
-        // Justificación: Síntomas leves, revisión de rutina o condiciones crónicas estables.
-        return RiskLevel.BLUE
+        rules.add("Regla Base: Síntomas leves o estables. Ausencia de banderas rojas.")
+        return EngineEvaluation(RiskLevel.BLUE, rules)
     }
 }

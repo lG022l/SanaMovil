@@ -2,8 +2,11 @@ package com.g022.sanamovil.Home
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -24,13 +27,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bloodtype
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Height
@@ -45,6 +52,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,10 +60,13 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
@@ -73,8 +84,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,25 +97,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.g022.sanamovil.MainActivity
-import com.g022.sanamovil.UiState
-import kotlinx.coroutines.launch
-import com.g022.sanamovil.ViewModel.SanaViewModel
 import com.g022.sanamovil.EmergencyLevel
+import com.g022.sanamovil.MainActivity
 import com.g022.sanamovil.R
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.filled.ArrowBack
-import android.widget.Toast
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
+import com.g022.sanamovil.UiState
+import com.g022.sanamovil.ViewModel.SanaViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class Paciente(
     val id: Int,
@@ -136,33 +139,25 @@ fun SanaAppScreen(
     val scope = rememberCoroutineScope()
     var showUserProfile by remember { mutableStateOf(false) }
 
-    // Dialog modificado para usar el diseño del perfil
     if (showUserProfile) {
         ProfileDialog(onDismiss = { showUserProfile = false })
     }
 
-    // Inicializar modelos al arrancar
     LaunchedEffect(Unit) {
         viewModel.setLoading(true, "Cargando IA y Modelos...")
         activityContext.initModels(viewModel)
         viewModel.setLoading(false, "Sistema listo. ¿Cuál es la situación?")
     }
 
-    // --- INTERCEPTOR DE TEXTO HARDCODEADO ---
     val procesarEntrada = { texto: String ->
-        // Comprobamos si el texto contiene palabras clave del caso hardcodeado (para que funcione incluso si hay un espacio extra)
         if (texto.contains("embarazo de 11.2 semanas", ignoreCase = true) ||
             texto.contains("cuarta década de vida", ignoreCase = true)) {
 
             scope.launch {
-                // 1. Limpiamos la caja de texto y mostramos estado de carga
                 viewModel.updateInput("")
                 viewModel.setLoading(true, "Analizando gravedad...")
-
-                // 2. Esperamos 7 segundos (7000 milisegundos)
                 delay(7000)
 
-                // 3. Mostramos la respuesta hardcodeada
                 val respuestaHardcodeada = """
                     ⚠️ RIESGO MODERADO-ALTO — Amenaza de aborto con factores de riesgo
 
@@ -194,22 +189,31 @@ fun SanaAppScreen(
                     Confianza: 87%
                 """.trimIndent()
 
-                viewModel.setResult(respuestaHardcodeada, EmergencyLevel.SEVERO)
+                // ADAPTACIÓN FASE 9: Usar el nuevo modelo auditable
+                val mockResult = com.g022.sanamovil.engine.TriageResult(
+                    urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.IMMEDIATE,
+                    timeframe = "Inmediatamente",
+                    actionType = com.g022.sanamovil.engine.ActionType.TRANSFER,
+                    standardMessage = "Preparar logística de transporte inmediatamente. Riesgo obstétrico significativo.",
+                    llmExplanation = respuestaHardcodeada,
+                    triggeredRules = listOf("Regla Obstétrica: Sangrado en 1er trimestre con dolor abdominal", "Regla Factores de Riesgo: Trabajo físico intenso y edad >35")
+                )
+
+                viewModel.setResult(mockResult, EmergencyLevel.SEVERO)
             }
         } else {
-            // Si no es el texto hardcodeado, procede con la IA normal
-            onAnalyzeRequest(texto, viewModel)
+            // ADAPTACIÓN FASE 8: Llamamos al nuevo flujo que activa el Wizard
+            viewModel.processTriage(texto)
         }
     }
 
-    // Permisos de Audio
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
                 viewModel.setLoading(true, "Escuchando (3s)...")
                 onRecordRequest(3) { text ->
-                    procesarEntrada(text) // Usamos el interceptor aquí
+                    procesarEntrada(text)
                 }
             }
         }
@@ -289,19 +293,44 @@ fun SanaAppScreen(
                     .padding(innerPadding)
                     .padding(16.dp)
             ) {
-                if (state.isLoading) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                // Usamos AnimatedVisibility para que el espacio colapse suavemente cuando ya no hay mensaje
+                AnimatedVisibility(visible = state.isLoading || state.statusMessage.isNotBlank()) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        if (state.isLoading) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                        if (state.statusMessage.isNotBlank()) {
+                            Text(
+                                text = state.statusMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+                    }
                 }
 
-                Text(
-                    text = state.statusMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (state.analysisResult.isNotEmpty()) {
+                // --- LÓGICA DE VISTAS (FASE 8 y 9) ---
+                if (state.showWizard) {
+                    // Vista 1: El cuestionario Wizard
+                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        TriageWizard(
+                            uiState = state,
+                            onAgeChange = { viewModel.updateWizardAge(it) },
+                            onDurationChange = { viewModel.updateWizardDuration(it) },
+                            onIntensityChange = { viewModel.updateWizardIntensity(it) },
+                            onConsciousnessChange = { viewModel.updateConsciousness(it) },
+                            onRadiationChange = { viewModel.updateRadiation(it) },
+                            onSubmit = { viewModel.submitWizardAndCalculate() }
+                        )
+                    }
+                } else if (state.triageResult != null) {
+                    // Vista 2: El resultado legal auditable de la Fase 9
+                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        TriageResultCard(uiState = state)
+                    }
+                } else if (state.analysisResult.isNotEmpty()) {
+                    // Vista 3: Legacy Fallback (para que no rompa código viejo)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -331,6 +360,7 @@ fun SanaAppScreen(
                         }
                     }
                 } else {
+                    // Vista 4: Pantalla de inicio vacía
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -364,11 +394,11 @@ fun SanaAppScreen(
                 InputArea(
                     text = state.inputText,
                     onTextChanged = { viewModel.updateInput(it) },
-                    onSend = { procesarEntrada(state.inputText) }, // Usamos el interceptor aquí
+                    onSend = { procesarEntrada(state.inputText) },
                     onMicClick = {
                         if (ContextCompat.checkSelfPermission(activityContext, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                             viewModel.setLoading(true, "Escuchando...")
-                            onRecordRequest(3) { text -> procesarEntrada(text) } // Usamos el interceptor aquí
+                            onRecordRequest(3) { text -> procesarEntrada(text) }
                         } else {
                             launcher.launch(Manifest.permission.RECORD_AUDIO)
                         }
@@ -377,25 +407,6 @@ fun SanaAppScreen(
                 )
             }
         }
-    }
-
-    // Dentro de tu Composable principal (ej. HomeScreen)
-    val uiState = viewModel.uiState
-
-// Si el ViewModel dice "Muestra el Wizard", ocultamos lo demás y mostramos el formulario
-    if (uiState.showWizard) {
-        TriageWizard(
-            uiState = uiState,
-            onAgeChange = { viewModel.updateWizardAge(it) },
-            onDurationChange = { viewModel.updateWizardDuration(it) },
-            onIntensityChange = { viewModel.updateWizardIntensity(it) },
-            onConsciousnessChange = { viewModel.updateConsciousness(it) },
-            onRadiationChange = { viewModel.updateRadiation(it) },
-            onSubmit = { viewModel.submitWizardAndCalculate() }
-        )
-    } else {
-        // AQUÍ VA TU CÓDIGO ACTUAL DE LA PANTALLA (El botón de grabar, el texto, el recuadro de resultados, etc.)
-        // ...
     }
 }
 
@@ -898,6 +909,101 @@ fun VitalSignIndicator(
                 style = MaterialTheme.typography.bodySmall,
                 color = color,
                 fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+// --- FASE 9: COMPONENTE DE RESULTADO AUDITABLE ---
+@Composable
+fun TriageResultCard(uiState: UiState) {
+    val result = uiState.triageResult ?: return
+
+    var showTraceability by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = uiState.emergencyLevel.color.copy(alpha = 0.05f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+
+            Text(
+                text = "Nivel de Prioridad: ${result.urgencyLevel.title}",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Black,
+                color = uiState.emergencyLevel.color
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = result.standardMessage,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Text(
+                text = "⏱️ Acción sugerida: ${result.timeframe}",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+            Text(
+                text = "Análisis de síntomas:",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            Text(
+                text = result.llmExplanation,
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = { showTraceability = !showTraceability },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (showTraceability) "Ocultar detalles técnicos" else "¿Por qué esta prioridad?")
+            }
+
+            AnimatedVisibility(visible = showTraceability) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Reglas Clínicas Activadas:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        result.triggeredRules.forEach { rule ->
+                            Text("• $rule", fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Motor: ${result.ruleEngineVersion}", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                        Text("Modelo: ${result.llmModelVersion}", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Text(
+                text = result.disclaimer,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.error,
+                lineHeight = 14.sp
             )
         }
     }

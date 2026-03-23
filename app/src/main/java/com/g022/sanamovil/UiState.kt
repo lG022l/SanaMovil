@@ -23,7 +23,9 @@ data class UiState(
     val hasLossOfConsciousness: Boolean = false,
 
     val askAboutRadiation: Boolean = false,
-    val hasRadiatingPain: Boolean = false
+    val hasRadiatingPain: Boolean = false,
+
+    val triageResult: com.g022.sanamovil.engine.TriageResult? = null,
 )
 
 enum class EmergencyLevel(val color: Color, val label: String) {

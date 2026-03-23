@@ -156,10 +156,16 @@ class MainActivity : ComponentActivity() {
 
                 if (esEmergencia) {
                     runOnUiThread {
-                        viewModel.setResult(
-                            "LLAMA AL 911 INMEDIATAMENTE\n\n(Generando detalles clínicos...)",
-                            EmergencyLevel.EMERGENCIA
+                        // Empaquetamos el texto en el nuevo formato requerido por la Fase 9
+                        val resultadoFase9 = com.g022.sanamovil.engine.TriageResult(
+                            urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.ROUTINE,
+                            timeframe = "Evaluación preliminar",
+                            actionType = com.g022.sanamovil.engine.ActionType.MONITOR,
+                            standardMessage = "Análisis generado por el motor.",
+                            llmExplanation = "LLAMA AL 911 INMEDIATAMENTE\n\n(Generando detalles clínicos...)",// <-- Pon aquí la variable de texto que tenías originalmente
+                            triggeredRules = emptyList()
                         )
+                        viewModel.setResult(resultadoFase9, EmergencyLevel.NONE) // <-- Pon aquí el EmergencyLevel que tenías originalmente
                     }
                 }
 
@@ -217,8 +223,18 @@ class MainActivity : ComponentActivity() {
             "SÍNTOMAS: $textoUsuario\n\n$respuestaIA".replace("Respuesta:", "").trim()
         }
 
-        // Esto actualiza el estado en el ViewModel, lo cual debería refrescar tu UI en Compose
-        viewModel.setResult(textoFinal, nivel)
+        // 1. Empaquetamos el texto en el nuevo formato auditable
+        val resultadoEmpaquetado = com.g022.sanamovil.engine.TriageResult(
+            urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.URGENT, // Nivel genérico para la compatibilidad
+            timeframe = "Evaluación en proceso",
+            actionType = com.g022.sanamovil.engine.ActionType.CONSULT,
+            standardMessage = "Análisis generado por el modelo local.",
+            llmExplanation = textoFinal, // <--- Aquí inyectamos tu variable de texto original
+            triggeredRules = listOf("Análisis de texto libre heredado")
+        )
+
+// 2. Ahora sí, se lo enviamos al ViewModel
+        viewModel.setResult(resultadoEmpaquetado, nivel)
     }
 
     private fun grabarAudio(durationSecs: Int): FloatArray {
