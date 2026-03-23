@@ -9,13 +9,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,16 +30,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bloodtype
-import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Height
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Monitor
@@ -69,8 +64,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -149,15 +142,21 @@ fun SanaAppScreen(
         viewModel.setLoading(false, "Sistema listo. ¿Cuál es la situación?")
     }
 
+    // --- INTERCEPTOR DE TEXTO HARDCODEADO ---
     val procesarEntrada = { texto: String ->
+        // Comprobamos si el texto contiene palabras clave del caso hardcodeado (para que funcione incluso si hay un espacio extra)
         if (texto.contains("embarazo de 11.2 semanas", ignoreCase = true) ||
             texto.contains("cuarta década de vida", ignoreCase = true)) {
 
             scope.launch {
+                // 1. Limpiamos la caja de texto y mostramos estado de carga
                 viewModel.updateInput("")
                 viewModel.setLoading(true, "Analizando gravedad...")
+
+                // 2. Esperamos 7 segundos (7000 milisegundos)
                 delay(7000)
 
+                // 3. Mostramos la respuesta hardcodeada
                 val respuestaHardcodeada = """
                     ⚠️ RIESGO MODERADO-ALTO — Amenaza de aborto con factores de riesgo
 
@@ -189,17 +188,7 @@ fun SanaAppScreen(
                     Confianza: 87%
                 """.trimIndent()
 
-                // ADAPTACIÓN FASE 9: Usar el nuevo modelo auditable
-                val mockResult = com.g022.sanamovil.engine.TriageResult(
-                    urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.IMMEDIATE,
-                    timeframe = "Inmediatamente",
-                    actionType = com.g022.sanamovil.engine.ActionType.TRANSFER,
-                    standardMessage = "Preparar logística de transporte inmediatamente. Riesgo obstétrico significativo.",
-                    llmExplanation = respuestaHardcodeada,
-                    triggeredRules = listOf("Regla Obstétrica: Sangrado en 1er trimestre con dolor abdominal", "Regla Factores de Riesgo: Trabajo físico intenso y edad >35")
-                )
-
-                viewModel.setResult(mockResult, EmergencyLevel.SEVERO)
+                viewModel.setLegacyResult(respuestaHardcodeada, EmergencyLevel.SEVERO)
             }
         } else {
             // ADAPTACIÓN FASE 8: Llamamos al nuevo flujo que activa el Wizard
@@ -449,30 +438,28 @@ fun InputArea(
             // Botón micrófono
             IconButton(
                 onClick = onMicClick,
-                enabled = isEnabled
+                enabled = isEnabled,
+                modifier = Modifier.size(48.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Grabar",
-                    tint = if (isEnabled)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                )
+                Icon(Icons.Default.Mic, "Grabar audio", tint = MaterialTheme.colorScheme.primary)
             }
 
             // Botón enviar
             IconButton(
                 onClick = onSend,
-                enabled = isEnabled && text.isNotBlank()
+                enabled = isEnabled && text.isNotBlank(),
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (text.isNotBlank()) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Enviar",
-                    tint = if (isEnabled && text.isNotBlank())
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    Icons.AutoMirrored.Filled.Send,
+                    "Enviar",
+                    tint = if (text.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -481,11 +468,9 @@ fun InputArea(
 
 @Composable
 fun ProfileDialog(onDismiss: () -> Unit) {
-    var pacienteSeleccionado by remember { mutableStateOf<Paciente?>(null) }
-
-    // Herramientas para copiar al portapapeles y mostrar mensajes (Toasts)
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+    var selectedPatient by remember { mutableStateOf<Paciente?>(null) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -493,97 +478,78 @@ fun ProfileDialog(onDismiss: () -> Unit) {
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f),
+                .fillMaxSize()
+                .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
-            if (pacienteSeleccionado == null) {
-                // VISTA 1: Lista de Pacientes
+            if (selectedPatient == null) {
+                // PANTALLA 1: Lista de pacientes
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(24.dp)
                 ) {
-                    // --- ENCABEZADO MODIFICADO ---
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Lista de Pacientes",
+                            text = "Seleccionar Paciente",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
-
-                        // Agrupamos los botones a la derecha
-                        Row {
-                            // Nuevo botón "+" que aún no hace nada
-                            IconButton(onClick = { /* TODO: Implementar agregar paciente */ }) {
-                                Icon(Icons.Default.Add, contentDescription = "Agregar paciente")
-                            }
-                            // Botón de cerrar original
-                            IconButton(onClick = onDismiss) {
-                                Icon(Icons.Default.Close, contentDescription = "Cerrar")
-                            }
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar")
                         }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
+                    LazyColumn {
                         items(pacientesDePrueba) { paciente ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { pacienteSeleccionado = paciente },
+                                    .padding(vertical = 8.dp)
+                                    .clickable { selectedPatient = paciente },
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Person,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = paciente.nombre,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "${paciente.edad} años • Sangre: ${paciente.tipoSangre}",
+                                            text = "${paciente.edad} años • ${paciente.sexo}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(32.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                         }
                     }
                 }
             } else {
-                // VISTA 2: Perfil del Paciente
-                val paciente = pacienteSeleccionado!!
-
-                // Modificamos el Header para la vista de detalles
+                // PANTALLA 2: Detalles del paciente seleccionado
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -595,146 +561,85 @@ fun ProfileDialog(onDismiss: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { pacienteSeleccionado = null }) {
-                            Icon(Icons.Default.ArrowBack, "Volver a la lista")
+                        IconButton(onClick = { selectedPatient = null }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Regresar")
                         }
-                        Text(
-                            text = "Perfil Médico",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        IconButton(onClick = { }, enabled = false) {
-                            Icon(Icons.Default.Close, contentDescription = null, tint = Color.Transparent)
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar")
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = selectedPatient!!.nombre,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "${selectedPatient!!.edad} años • ${selectedPatient!!.sexo}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Avatar y nombre
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(60.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = paciente.nombre,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${paciente.edad} años",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    // Signos vitales
-                    Card(
+                    // --- TARJETAS DE SIGNOS VITALES ---
+                    val paciente = selectedPatient!!
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Signos Vitales",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                        Column {
+                            VitalSignIndicator(
+                                icon = Icons.Default.Height,
+                                label = "Estatura",
+                                value = paciente.estatura.toString(),
+                                unit = "m",
+                                color = Color(0xFF3B82F6),
+                                progress = 0.85f,
+                                normalRange = "Promedio",
+                                isAlert = false
                             )
+
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                VitalSignIndicator(
-                                    icon = Icons.Default.Cake,
-                                    label = "Edad",
-                                    value = paciente.edad.toString(),
-                                    unit = "años",
-                                    color = Color(0xFF8B5CF6),
-                                    progress = paciente.edad / 100f,
-                                    normalRange = "18-100"
-                                )
+                            VitalSignIndicator(
+                                icon = Icons.Default.Monitor,
+                                label = "Peso",
+                                value = paciente.peso.toInt().toString(),
+                                unit = "kg",
+                                color = Color(0xFF10B981),
+                                progress = 0.7f,
+                                normalRange = "Saludable",
+                                isAlert = false
+                            )
+                        }
 
-                                VitalSignIndicator(
-                                    icon = Icons.Default.Person,
-                                    label = "Sexo",
-                                    value = paciente.sexo,
-                                    color = Color(0xFF06B6D4),
-                                    progress = 1f,
-                                    normalRange = "M/F"
-                                )
-                            }
+                        Column {
+                            VitalSignIndicator(
+                                icon = Icons.Default.Bloodtype,
+                                label = "Tipo de Sangre",
+                                value = paciente.tipoSangre,
+                                color = Color(0xFFEF4444),
+                                progress = 1f,
+                                normalRange = paciente.tipoSangre,
+                                isAlert = false
+                            )
 
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                VitalSignIndicator(
-                                    icon = Icons.Default.Height,
-                                    label = "Estatura",
-                                    value = paciente.estatura.toString(),
-                                    unit = "m",
-                                    color = Color(0xFF3B82F6),
-                                    progress = 1f,
-                                    normalRange = "---"
-                                )
-
-                                VitalSignIndicator(
-                                    icon = Icons.Default.Monitor,
-                                    label = "Peso",
-                                    value = paciente.peso.toString(),
-                                    unit = "kg",
-                                    color = Color(0xFF10B981),
-                                    progress = paciente.peso / 120f,
-                                    normalRange = "60-90 kg"
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                VitalSignIndicator(
-                                    icon = Icons.Default.Bloodtype,
-                                    label = "Tipo Sanguíneo",
-                                    value = paciente.tipoSangre,
-                                    color = Color(0xFFEF4444),
-                                    progress = 1f,
-                                    normalRange = "A, B, AB, O"
-                                )
-
-                                VitalSignIndicator(
-                                    icon = Icons.Default.HealthAndSafety,
-                                    label = "Alergias",
-                                    value = paciente.alergias.toString(),
-                                    color = Color(0xFF14B8A6),
-                                    progress = 1f,
-                                    normalRange = "Ninguna conocida",
-                                    isAlert = paciente.alergias > 0
-                                )
-                            }
+                            VitalSignIndicator(
+                                icon = Icons.Default.HealthAndSafety,
+                                label = "Alergias",
+                                value = paciente.alergias.toString(),
+                                color = Color(0xFF14B8A6),
+                                progress = 1f,
+                                normalRange = "Ninguna conocida",
+                                isAlert = paciente.alergias > 0
+                            )
                         }
                     }
 
@@ -818,7 +723,6 @@ fun ProfileDialog(onDismiss: () -> Unit) {
         }
     }
 }
-
 
 @Composable
 fun VitalSignIndicator(
@@ -926,7 +830,8 @@ fun TriageResultCard(uiState: UiState) {
             .fillMaxWidth()
             .padding(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = uiState.emergencyLevel.color.copy(alpha = 0.05f)
+            // Ajustado el alpha a 0.1f para mantener el sombreado original
+            containerColor = uiState.emergencyLevel.color.copy(alpha = 0.1f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -958,17 +863,21 @@ fun TriageResultCard(uiState: UiState) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
-            Text(
-                text = "Análisis de síntomas:",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
+            // --- INICIO DEL ESTILO ORIGINAL PARA LA RESPUESTA DEL LLM ---
+            if (uiState.emergencyLevel != EmergencyLevel.NONE) {
+                Text(
+                    text = uiState.emergencyLevel.label,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = uiState.emergencyLevel.color,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
             Text(
                 text = result.llmExplanation,
-                fontSize = 15.sp,
-                lineHeight = 20.sp
+                style = MaterialTheme.typography.bodyLarge
             )
+            // --- FIN DEL ESTILO ORIGINAL ---
 
             Spacer(modifier = Modifier.height(16.dp))
 

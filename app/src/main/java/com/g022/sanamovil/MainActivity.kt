@@ -129,7 +129,6 @@ class MainActivity : ComponentActivity() {
         }
 
         // 2. Cargar Llama (MedGemma)
-        // PON AQUÍ EL NOMBRE EXACTO DE TU ARCHIVO .GGUF:
         val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
         val llamaPath = getModelPath(llamaModelName)
 
@@ -137,6 +136,12 @@ class MainActivity : ComponentActivity() {
             viewModel.isLlamaLoaded = loadLlamaModel(llamaPath)
             if(viewModel.isLlamaLoaded) {
                 Log.d("SANA", "Cerebro Llama (MedGemma) cargado OK")
+
+                // --- NUEVA LÍNEA: Conectamos la función JNI real al ViewModel ---
+                viewModel.generateLlamaResponse = { prompt ->
+                    generateTextLlama(prompt)
+                }
+
             } else {
                 Log.e("SANA", "Falló la carga de Llama en C++")
             }

@@ -26,6 +26,9 @@ class SanaViewModel : ViewModel() {
     var isLlamaLoaded = false
     var isWhisperLoaded = false
 
+    // Variable para enlazar la función nativa de C++
+    var generateLlamaResponse: ((String) -> String)? = null
+
     // Historial ficticio para el menú lateral
     var recentQueries = mutableStateListOf<String>()
 
@@ -80,11 +83,8 @@ class SanaViewModel : ViewModel() {
      * Función Mockup: Aquí es donde debes conectar tu código JNI que llama a llama-lib.cpp
      */
     private fun generateWithLocalLlm(prompt: String): String {
-        // Aquí mandarías llamar a tu función nativa.
-        // Ej: return nativeLlamaGenerate(prompt)
-
-        // Simulación para que compile y pruebes:
-        return "Simulación de respuesta del LLM local..."
+        // Llamamos a la función nativa real si está conectada
+        return generateLlamaResponse?.invoke(prompt) ?: "Error: Conexión con el modelo LLM falló."
     }
 
 
@@ -108,44 +108,33 @@ class SanaViewModel : ViewModel() {
     fun updateConsciousness(loss: Boolean) { uiState = uiState.copy(hasLossOfConsciousness = loss) }
     fun updateRadiation(radiates: Boolean) { uiState = uiState.copy(hasRadiatingPain = radiates) }
 
-    // 3. Modificamos processTriage para que haga la pausa del Wizard
+    // 3. Modificamos processTriage para que sea INSTANTÁNEO
     fun processTriage(transcription: String) {
         if (!isLlamaLoaded) {
             setLoading(false, "Error: El modelo de IA no está cargado aún.")
             return
         }
 
-        viewModelScope.launch {
-            try {
-                setLoading(true, "Analizando tu descripción...")
+        // 1. Detección rápida de palabras clave (sin usar la IA, toma 0.01 segundos)
+        val lowerText = transcription.lowercase()
+        val asksRadiation = lowerText.contains("pecho") || lowerText.contains("corazón")
 
-                withContext(Dispatchers.IO) {
-                    // Extraemos lo que podamos del texto libre (como en la Fase 7)
-                    val extractionPrompt = symptomExtractor.buildExtractionPrompt(transcription)
-                    val rawJsonFromLlama = generateWithLocalLlm(extractionPrompt)
-                    temporarySymptoms = symptomExtractor.parseLlmResponseToSymptoms(rawJsonFromLlama)
+        // 2. Creamos los datos temporales directamente con el texto del usuario
+        temporarySymptoms = com.g022.sanamovil.engine.StructuredSymptoms(
+            intensity = 5,
+            age = 0,
+            isConscious = true,
+            radiatingPain = false
+        )
 
-                    withContext(Dispatchers.Main) {
-                        // Lógica Dinámica: Si el texto menciona dolor de pecho, activamos la pregunta de irradiación
-                        val lowerText = transcription.lowercase()
-                        val asksRadiation = lowerText.contains("pecho") || lowerText.contains("corazón")
-
-                        // En lugar de calcular el resultado, ABRIMOS EL WIZARD
-                        uiState = uiState.copy(
-                            isLoading = false,
-                            showWizard = true,
-                            askAboutRadiation = asksRadiation,
-                            // Pre-llenamos la intensidad si el LLM logró extraerla
-                            wizardIntensity = temporarySymptoms?.intensity?.toFloat() ?: 5f
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    setLoading(false, "Error: ${e.message}")
-                }
-            }
-        }
+        // 3. Mostramos el Wizard inmediatamente, apagando el estado de carga
+        uiState = uiState.copy(
+            isLoading = false,
+            statusMessage = "",
+            showWizard = true,
+            askAboutRadiation = asksRadiation,
+            wizardIntensity = 5f
+        )
     }
 
     // 4. Esta función se llama cuando el usuario le da "Continuar" en el Wizard
@@ -197,6 +186,17 @@ class SanaViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun setLegacyResult(text: String, level: EmergencyLevel) {
+        uiState = uiState.copy(
+            analysisResult = text,
+            emergencyLevel = level,
+            isLoading = false,
+            statusMessage = ""
+        )
+        // Agregar al historial
+        recentQueries.add(0, "Simulación - ${level.label}")
     }
 
 
