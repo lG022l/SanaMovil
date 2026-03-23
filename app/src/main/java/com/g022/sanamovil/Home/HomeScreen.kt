@@ -378,6 +378,25 @@ fun SanaAppScreen(
             }
         }
     }
+
+    // Dentro de tu Composable principal (ej. HomeScreen)
+    val uiState = viewModel.uiState
+
+// Si el ViewModel dice "Muestra el Wizard", ocultamos lo demás y mostramos el formulario
+    if (uiState.showWizard) {
+        TriageWizard(
+            uiState = uiState,
+            onAgeChange = { viewModel.updateWizardAge(it) },
+            onDurationChange = { viewModel.updateWizardDuration(it) },
+            onIntensityChange = { viewModel.updateWizardIntensity(it) },
+            onConsciousnessChange = { viewModel.updateConsciousness(it) },
+            onRadiationChange = { viewModel.updateRadiation(it) },
+            onSubmit = { viewModel.submitWizardAndCalculate() }
+        )
+    } else {
+        // AQUÍ VA TU CÓDIGO ACTUAL DE LA PANTALLA (El botón de grabar, el texto, el recuadro de resultados, etc.)
+        // ...
+    }
 }
 
 @Composable
@@ -788,6 +807,7 @@ fun ProfileDialog(onDismiss: () -> Unit) {
         }
     }
 }
+
 
 @Composable
 fun VitalSignIndicator(

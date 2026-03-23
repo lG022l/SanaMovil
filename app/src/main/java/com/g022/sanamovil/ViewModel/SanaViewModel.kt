@@ -58,58 +58,6 @@ class SanaViewModel : ViewModel() {
      * Llama a esta función cuando Whisper termine de transcribir el audio
      * o cuando el usuario presione el botón de "Analizar texto".
      */
-    fun processTriage(transcription: String) {
-        if (!isLlamaLoaded) {
-            setLoading(false, "Error: El modelo de IA no está cargado aún.")
-            return
-        }
-
-        viewModelScope.launch {
-            try {
-                // Paso 1: Notificar a la UI
-                setLoading(true, "Extrayendo síntomas de la transcripción...")
-
-                // Hacemos el trabajo pesado en un hilo secundario para no congelar la UI
-                withContext(Dispatchers.IO) {
-                    // FASE 1: EXTRAER DATOS
-                    val extractionPrompt = symptomExtractor.buildExtractionPrompt(transcription)
-
-                    // TODO: Reemplaza esto con tu llamada real a Llama en C++ (llama-lib.cpp)
-                    val rawJsonFromLlama = generateWithLocalLlm(extractionPrompt)
-
-                    val structuredSymptoms = symptomExtractor.parseLlmResponseToSymptoms(rawJsonFromLlama)
-
-                    // FASE 2: MOTOR DE REGLAS DETERMINISTA (Sin IA)
-                    setLoading(true, "Calculando nivel de riesgo (Triaje)...")
-                    val clinicalRiskLevel = ruleEngine.evaluateSymptoms(structuredSymptoms)
-
-                    // FASE 3: GENERAR EXPLICACIÓN (Con IA)
-                    setLoading(true, "Generando recomendación segura...")
-                    val explanationPrompt = explanationGenerator.buildExplanationPrompt(structuredSymptoms, clinicalRiskLevel)
-
-                    // TODO: Reemplaza esto con tu llamada real a Llama en C++
-                    val rawExplanationFromLlama = generateWithLocalLlm(explanationPrompt)
-
-                    // FASE 4: GUARDRAILS DE SEGURIDAD
-                    val safeExplanation = explanationGenerator.validateAndFilterResponse(rawExplanationFromLlama)
-
-                    // FASE 5: MAPEO Y ACTUALIZACIÓN DE UI
-                    // Convertimos el RiskLevel clínico al EmergencyLevel visual que ya tienes en tu repo
-                    val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
-
-                    // Volvemos al hilo principal para actualizar la UI de Compose
-                    withContext(Dispatchers.Main) {
-                        setResult(safeExplanation, emergencyLevelUi)
-                    }
-                }
-
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    setLoading(false, "Ocurrió un error en el motor: ${e.message}")
-                }
-            }
-        }
-    }
 
     /**
      * Mapea el resultado del motor clínico determinista a los colores/estados
@@ -135,4 +83,99 @@ class SanaViewModel : ViewModel() {
         // Simulación para que compile y pruebes:
         return "Simulación de respuesta del LLM local..."
     }
+
+
+    // --- FUNCIONES DEL WIZARD (FASE 8) ---
+
+    // 1. Guardamos temporalmente los síntomas extraídos por el LLM
+    private var temporarySymptoms: com.g022.sanamovil.engine.StructuredSymptoms? = null
+
+    // 2. Actualizadores de estado para los inputs del usuario
+    fun updateWizardAge(age: String) { uiState = uiState.copy(wizardAge = age) }
+    fun updateWizardDuration(duration: String) { uiState = uiState.copy(wizardDuration = duration) }
+    fun updateWizardIntensity(intensity: Float) {
+        uiState = uiState.copy(wizardIntensity = intensity)
+        // Lógica Dinámica: Si la intensidad es mayor a 7, preguntamos por consciencia
+        if (intensity > 7f) {
+            uiState = uiState.copy(askAboutConsciousness = true)
+        } else {
+            uiState = uiState.copy(askAboutConsciousness = false, hasLossOfConsciousness = false)
+        }
+    }
+    fun updateConsciousness(loss: Boolean) { uiState = uiState.copy(hasLossOfConsciousness = loss) }
+    fun updateRadiation(radiates: Boolean) { uiState = uiState.copy(hasRadiatingPain = radiates) }
+
+    // 3. Modificamos processTriage para que haga la pausa del Wizard
+    fun processTriage(transcription: String) {
+        if (!isLlamaLoaded) {
+            setLoading(false, "Error: El modelo de IA no está cargado aún.")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                setLoading(true, "Analizando tu descripción...")
+
+                withContext(Dispatchers.IO) {
+                    // Extraemos lo que podamos del texto libre (como en la Fase 7)
+                    val extractionPrompt = symptomExtractor.buildExtractionPrompt(transcription)
+                    val rawJsonFromLlama = generateWithLocalLlm(extractionPrompt)
+                    temporarySymptoms = symptomExtractor.parseLlmResponseToSymptoms(rawJsonFromLlama)
+
+                    withContext(Dispatchers.Main) {
+                        // Lógica Dinámica: Si el texto menciona dolor de pecho, activamos la pregunta de irradiación
+                        val lowerText = transcription.lowercase()
+                        val asksRadiation = lowerText.contains("pecho") || lowerText.contains("corazón")
+
+                        // En lugar de calcular el resultado, ABRIMOS EL WIZARD
+                        uiState = uiState.copy(
+                            isLoading = false,
+                            showWizard = true,
+                            askAboutRadiation = asksRadiation,
+                            // Pre-llenamos la intensidad si el LLM logró extraerla
+                            wizardIntensity = temporarySymptoms?.intensity?.toFloat() ?: 5f
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    setLoading(false, "Error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // 4. Esta función se llama cuando el usuario le da "Continuar" en el Wizard
+    fun submitWizardAndCalculate() {
+        val temp = temporarySymptoms ?: return
+
+        // Fusionamos lo que extrajo el LLM con lo que el usuario puso explícitamente en el Wizard (Prioridad al Wizard)
+        val finalSymptoms = temp.copy(
+            age = uiState.wizardAge.toIntOrNull() ?: temp.age,
+            intensity = uiState.wizardIntensity.toInt(),
+            isConscious = !uiState.hasLossOfConsciousness, // Si hubo pérdida, no está al 100% consciente
+            radiatingPain = uiState.hasRadiatingPain || temp.radiatingPain
+        )
+
+        uiState = uiState.copy(showWizard = false) // Ocultamos el Wizard
+
+        viewModelScope.launch {
+            setLoading(true, "Calculando nivel de riesgo...")
+            withContext(Dispatchers.IO) {
+                // FASE 2 y 3 (Igual que en la Fase 7)
+                val clinicalRiskLevel = ruleEngine.evaluateSymptoms(finalSymptoms)
+                val explanationPrompt = explanationGenerator.buildExplanationPrompt(finalSymptoms, clinicalRiskLevel)
+                val rawExplanationFromLlama = generateWithLocalLlm(explanationPrompt)
+                val safeExplanation = explanationGenerator.validateAndFilterResponse(rawExplanationFromLlama)
+                val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
+
+                withContext(Dispatchers.Main) {
+                    setResult(safeExplanation, emergencyLevelUi)
+                }
+            }
+        }
+    }
+
+
+
 }
