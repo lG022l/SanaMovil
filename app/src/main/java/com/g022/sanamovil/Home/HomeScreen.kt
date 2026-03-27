@@ -854,7 +854,7 @@ fun TriageResultCard(uiState: UiState) {
             )
 
             Text(
-                text = "⏱️ Acción sugerida: ${result.timeframe}",
+                text = "Acción sugerida: ${result.timeframe}",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,

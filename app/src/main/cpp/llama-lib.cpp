@@ -156,4 +156,94 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     return env->NewStringUTF(result_text.c_str());
 }
 
+JNIEXPORT void JNICALL
+Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobject thiz, jstring promptStr, jobject callback) {
+    if (g_llama_ctx == nullptr) return;
+
+    const char *prompt = env->GetStringUTFChars(promptStr, nullptr);
+
+    // Obtener la referencia al método onToken de Kotlin
+    jclass callbackClass = env->GetObjectClass(callback);
+    jmethodID onTokenMethod = env->GetMethodID(callbackClass, "onToken", "(Ljava/lang/String;)V");
+
+    const struct llama_vocab * vocab = llama_model_get_vocab(g_llama_model);
+
+    std::vector<llama_token> tokens_list(strlen(prompt) + 4);
+    int n_tokens = llama_tokenize(vocab, prompt, strlen(prompt), tokens_list.data(), tokens_list.size(), true, true);
+    if (n_tokens < 0) {
+        tokens_list.resize(-n_tokens);
+        n_tokens = llama_tokenize(vocab, prompt, strlen(prompt), tokens_list.data(), tokens_list.size(), true, true);
+    }
+    tokens_list.resize(n_tokens);
+
+    if (n_tokens >= 1024) {
+        env->ReleaseStringUTFChars(promptStr, prompt);
+        return;
+    }
+
+    llama_batch batch = llama_batch_init(512, 0, 1);
+    for (int i = 0; i < n_tokens; i++) {
+        batch_add(batch, tokens_list[i], i, { 0 }, false);
+    }
+    batch.logits[batch.n_tokens - 1] = true;
+
+    if (llama_decode(g_llama_ctx, batch) != 0) {
+        llama_batch_free(batch);
+        env->ReleaseStringUTFChars(promptStr, prompt);
+        return;
+    }
+
+    int n_cur = batch.n_tokens;
+    int n_decode = 0;
+    const int max_tokens = 300;
+
+    while (n_decode < max_tokens) {
+        auto * logits = llama_get_logits_ith(g_llama_ctx, batch.n_tokens - 1);
+        int n_vocab = llama_vocab_n_tokens(vocab);
+
+        llama_token new_token_id = 0;
+        float max_logit = -1e9;
+        for (int i = 0; i < n_vocab; i++) {
+            if (logits[i] > max_logit) {
+                max_logit = logits[i];
+                new_token_id = i;
+            }
+        }
+
+        if (new_token_id == llama_vocab_eos(vocab)) {
+            break;
+        }
+
+        char buf[128];
+        int n = llama_token_to_piece(vocab, new_token_id, buf, sizeof(buf), 0, true);
+        if (n >= 0) {
+            std::string piece(buf, n);
+
+            // Si detecta el fin de turno, detenemos la generación
+            if (piece.find("<end_of_turn>") != std::string::npos) {
+                break;
+            }
+
+            // === AQUÍ SUCEDE LA MAGIA DEL STREAMING ===
+            // Enviamos el fragmento (token) a Kotlin inmediatamente
+            jstring jPiece = env->NewStringUTF(piece.c_str());
+            env->CallVoidMethod(callback, onTokenMethod, jPiece);
+            env->DeleteLocalRef(jPiece); // Liberar memoria para evitar fugas
+        }
+
+        batch.n_tokens = 0;
+        batch_add(batch, new_token_id, n_cur, { 0 }, true);
+
+        if (llama_decode(g_llama_ctx, batch) != 0) {
+            break;
+        }
+
+        n_cur++;
+        n_decode++;
+    }
+
+    llama_batch_free(batch);
+    env->ReleaseStringUTFChars(promptStr, prompt);
+}
+
 }

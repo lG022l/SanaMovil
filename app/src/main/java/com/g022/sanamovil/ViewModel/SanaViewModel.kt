@@ -26,8 +26,12 @@ class SanaViewModel : ViewModel() {
     var isLlamaLoaded = false
     var isWhisperLoaded = false
 
-    // Variable para enlazar la función nativa de C++
+    // Variable clásica para enlazar la función nativa de C++ (1 solo bloque)
     var generateLlamaResponse: ((String) -> String)? = null
+
+    // --- NUEVA VARIABLE FASE STREAMING ---
+    // Variable para enlazar la nueva función nativa de streaming
+    var generateLlamaStream: ((String, (String) -> Unit) -> Unit)? = null
 
     // Historial ficticio para el menú lateral
     var recentQueries = mutableStateListOf<String>()
@@ -59,11 +63,6 @@ class SanaViewModel : ViewModel() {
         recentQueries.add(0, preview)
     }
 
-    /**
-     * FASE 7: EL NUEVO FLUJO ORQUESTADOR
-     * Llama a esta función cuando Whisper termine de transcribir el audio
-     * o cuando el usuario presione el botón de "Analizar texto".
-     */
 
     /**
      * Mapea el resultado del motor clínico determinista a los colores/estados
@@ -78,15 +77,6 @@ class SanaViewModel : ViewModel() {
             RiskLevel.BLUE -> EmergencyLevel.NONE
         }
     }
-
-    /**
-     * Función Mockup: Aquí es donde debes conectar tu código JNI que llama a llama-lib.cpp
-     */
-    private fun generateWithLocalLlm(prompt: String): String {
-        // Llamamos a la función nativa real si está conectada
-        return generateLlamaResponse?.invoke(prompt) ?: "Error: Conexión con el modelo LLM falló."
-    }
-
 
     // --- FUNCIONES DEL WIZARD (FASE 8) ---
 
@@ -154,35 +144,51 @@ class SanaViewModel : ViewModel() {
             setLoading(true, "Calculando nivel de riesgo...")
             withContext(Dispatchers.IO) {
 
-                // AQUI ESTÁ LA MAGIA DE LA FASE 9
                 // 1. Obtenemos la evaluación que ahora incluye las reglas activadas (Auditoría)
                 val engineEval = ruleEngine.evaluateSymptoms(finalSymptoms)
                 val clinicalRiskLevel = engineEval.riskLevel
                 val triggeredRules = engineEval.triggeredRules
 
-                // 2. Generamos la explicación empática con el LLM
+                // 2. Generamos el prompt para la IA
                 val explanationPrompt = explanationGenerator.buildExplanationPrompt(finalSymptoms, clinicalRiskLevel)
-                val rawExplanationFromLlama = generateWithLocalLlm(explanationPrompt)
-                val safeExplanation = explanationGenerator.validateAndFilterResponse(rawExplanationFromLlama)
 
                 // 3. Obtenemos los textos legales inmutables de nuestra biblioteca
                 val urgency = ResponseLibrary.mapRiskToUrgency(clinicalRiskLevel)
+                val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
 
-                // 4. Armamos el paquete final blindado legalmente
-                val finalTriageResult = TriageResult(
+                // 4. Armamos el paquete inicial (con explicación vacía por ahora)
+                var currentTriageResult = TriageResult(
                     urgencyLevel = urgency,
                     timeframe = ResponseLibrary.getTimeframe(urgency),
                     actionType = ResponseLibrary.getActionType(urgency),
                     standardMessage = ResponseLibrary.getStandardMessage(urgency),
-                    llmExplanation = safeExplanation,
+                    llmExplanation = "",
                     triggeredRules = triggeredRules
                 )
 
-                val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
-
+                // 5. Enviamos la tarjeta inicial vacía a la UI (esto quita el "Cargando...")
                 withContext(Dispatchers.Main) {
-                    // Enviamos todo el paquete a la UI
-                    setResult(finalTriageResult, emergencyLevelUi)
+                    setResult(currentTriageResult, emergencyLevelUi)
+                }
+
+                // 6. INICIAMOS EL STREAMING DE TEXTO
+                var accumulatedExplanation = ""
+
+                generateLlamaStream?.invoke(explanationPrompt) { token ->
+                    accumulatedExplanation += token
+
+                    // Pasamos el texto acumulado por tu filtro de seguridad
+                    val safeExplanation = explanationGenerator.validateAndFilterResponse(accumulatedExplanation)
+
+                    // Actualizamos la UI token por token
+                    viewModelScope.launch(Dispatchers.Main) {
+                        currentTriageResult = currentTriageResult.copy(llmExplanation = safeExplanation)
+
+                        uiState = uiState.copy(
+                            triageResult = currentTriageResult,
+                            analysisResult = safeExplanation
+                        )
+                    }
                 }
             }
         }
@@ -198,7 +204,4 @@ class SanaViewModel : ViewModel() {
         // Agregar al historial
         recentQueries.add(0, "Simulación - ${level.label}")
     }
-
-
-
 }

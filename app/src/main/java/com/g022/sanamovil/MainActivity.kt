@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
-//import com.google.mediapipe.tasks.genai.llminference.LlmInference
-//import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -27,8 +25,6 @@ import com.g022.sanamovil.ViewModel.SanaViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
-
 
 // --- ACTIVITY PRINCIPAL ---
 class MainActivity : ComponentActivity() {
@@ -40,6 +36,9 @@ class MainActivity : ComponentActivity() {
     // NUEVAS Funciones nativas (JNI) para Llama (MedGemma)
     external fun loadLlamaModel(modelPath: String): Boolean
     external fun generateTextLlama(prompt: String): String
+
+    // Función nativa para el streaming (Paso 2 y 3)
+    external fun generateTextLlamaStream(prompt: String, callback: com.g022.sanamovil.engine.LlamaStreamCallback)
 
     companion object {
         init {
@@ -54,8 +53,6 @@ class MainActivity : ComponentActivity() {
         "hemorragia", "sangrado", "sangre", "baleado", "disparo", "puñalada", "cuchillo", "quemadura",
         "suicidio", "matarme", "veneno", "brazo izquierdo"
     )
-
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,13 +70,10 @@ class MainActivity : ComponentActivity() {
 
                     // Ruta 1: Pantalla de Login
                     composable("login_screen") {
-                        // Llama a tu función LoginScreen (asegúrate de importarla si está en otro paquete)
                         LoginScreen(
                             onLoginClick = { email, password ->
                                 if (email == "admin" && password == "1234") {
-                                    // Si las credenciales son correctas, navega a la demo
                                     navController.navigate("home_screen") {
-                                        // Esto evita que al presionar 'Atrás' el usuario vuelva al Login
                                         popUpTo("login_screen") { inclusive = true }
                                     }
                                 }
@@ -93,13 +87,11 @@ class MainActivity : ComponentActivity() {
                     composable("registro_screen") {
                         RegisterScreen(
                             onRegisterClick = { correo, pass ->
-                                // Por ser demo, si le da registrar lo mandamos directo al login o a la app
                                 navController.navigate("login_screen") {
                                     popUpTo("login_screen") { inclusive = true }
                                 }
                             },
                             onBackToLogin = {
-                                // Esto lo regresa a la pantalla anterior (el login)
                                 navController.popBackStack()
                             }
                         )
@@ -108,7 +100,6 @@ class MainActivity : ComponentActivity() {
 
                     // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
                     composable("home_screen") {
-                        // Aquí llamamos a tu demo original, pasándole las funciones que necesita
                         SanaAppScreen(
                             onRecordRequest = { duration, callback -> grabarYProcesarAudio(duration, callback) },
                             onAnalyzeRequest = { text, viewModel -> procesarTexto(text, viewModel) },
@@ -137,7 +128,16 @@ class MainActivity : ComponentActivity() {
             if(viewModel.isLlamaLoaded) {
                 Log.d("SANA", "Cerebro Llama (MedGemma) cargado OK")
 
-                // --- NUEVA LÍNEA: Conectamos la función JNI real al ViewModel ---
+                // --- ACTUALIZACIÓN PASO 3: Conectamos la función de Streaming al ViewModel ---
+                viewModel.generateLlamaStream = { prompt, onTokenGenerated ->
+                    generateTextLlamaStream(prompt, object : com.g022.sanamovil.engine.LlamaStreamCallback {
+                        override fun onToken(token: String) {
+                            onTokenGenerated(token)
+                        }
+                    })
+                }
+
+                // Mantenemos también la función clásica por si `procesarTexto` (legacy) la sigue usando
                 viewModel.generateLlamaResponse = { prompt ->
                     generateTextLlama(prompt)
                 }
@@ -161,24 +161,21 @@ class MainActivity : ComponentActivity() {
 
                 if (esEmergencia) {
                     runOnUiThread {
-                        // Empaquetamos el texto en el nuevo formato requerido por la Fase 9
                         val resultadoFase9 = com.g022.sanamovil.engine.TriageResult(
                             urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.ROUTINE,
                             timeframe = "Evaluación preliminar",
                             actionType = com.g022.sanamovil.engine.ActionType.MONITOR,
                             standardMessage = "Análisis generado por el motor.",
-                            llmExplanation = "LLAMA AL 911 INMEDIATAMENTE\n\n(Generando detalles clínicos...)",// <-- Pon aquí la variable de texto que tenías originalmente
+                            llmExplanation = "LLAMA AL 911 INMEDIATAMENTE\n\n(Generando detalles clínicos...)",
                             triggeredRules = emptyList()
                         )
-                        viewModel.setResult(resultadoFase9, EmergencyLevel.NONE) // <-- Pon aquí el EmergencyLevel que tenías originalmente
+                        viewModel.setResult(resultadoFase9, EmergencyLevel.NONE)
                     }
                 }
 
-                // 2. Inferencia LLM
-                if (viewModel.isLlamaLoaded) { // Usamos el nuevo flag del ViewModel
+                // 2. Inferencia LLM (Nota: Esta función legacy sigue usando la generación de 1 solo bloque)
+                if (viewModel.isLlamaLoaded) {
                     val prompt = buildPrompt(textoUsuario)
-
-                    // Llamamos a nuestra nueva función de C++
                     val respuestaIA = generateTextLlama(prompt)
 
                     runOnUiThread {
@@ -199,7 +196,7 @@ class MainActivity : ComponentActivity() {
             val audioData = grabarAudio(durationSecs)
             if (audioData.isNotEmpty()) {
                 val texto = transcribeAudio(audioData)
-                onResult(texto) // Devuelve el texto al hilo principal o ViewModel
+                onResult(texto)
             }
         }.start()
     }
@@ -211,15 +208,13 @@ class MainActivity : ComponentActivity() {
         if (esEmergenciaPrevia) {
             nivel = EmergencyLevel.EMERGENCIA
         } else {
-            // Buscamos las palabras exactas que el prompt le exige a la IA
             if (respuestaNorm.contains("EMERGENCIA")) {
                 nivel = EmergencyLevel.EMERGENCIA
             } else if (respuestaNorm.contains("SEVERO") || respuestaNorm.contains("(ROJO)")) {
-                nivel = EmergencyLevel.SEVERO // Por si el modelo usa sinónimos
+                nivel = EmergencyLevel.SEVERO
             } else if (respuestaNorm.contains("MODERADO") || respuestaNorm.contains("(AMARILLO)")) {
                 nivel = EmergencyLevel.MODERADO
             }
-            // Si no detecta ninguna, se queda en LEVE (el valor por defecto)
         }
 
         val textoFinal = if (esEmergenciaPrevia) {
@@ -228,17 +223,15 @@ class MainActivity : ComponentActivity() {
             "SÍNTOMAS: $textoUsuario\n\n$respuestaIA".replace("Respuesta:", "").trim()
         }
 
-        // 1. Empaquetamos el texto en el nuevo formato auditable
         val resultadoEmpaquetado = com.g022.sanamovil.engine.TriageResult(
-            urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.URGENT, // Nivel genérico para la compatibilidad
+            urgencyLevel = com.g022.sanamovil.engine.UrgencyLevel.URGENT,
             timeframe = "Evaluación en proceso",
             actionType = com.g022.sanamovil.engine.ActionType.CONSULT,
             standardMessage = "Análisis generado por el modelo local.",
-            llmExplanation = textoFinal, // <--- Aquí inyectamos tu variable de texto original
+            llmExplanation = textoFinal,
             triggeredRules = listOf("Análisis de texto libre heredado")
         )
 
-// 2. Ahora sí, se lo enviamos al ViewModel
         viewModel.setResult(resultadoEmpaquetado, nivel)
     }
 
@@ -275,7 +268,6 @@ class MainActivity : ComponentActivity() {
         return file.absolutePath
     }
 
-
     private fun buildPrompt(textoUsuario: String): String {
         return """
         <start_of_turn>user
@@ -301,6 +293,4 @@ class MainActivity : ComponentActivity() {
         
     """.trimIndent()
     }
-
-
 }
