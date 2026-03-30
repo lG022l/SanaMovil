@@ -870,10 +870,34 @@ fun TriageResultCard(uiState: UiState) {
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
-            Text(
-                text = result.llmExplanation,
-                style = MaterialTheme.typography.bodyLarge
-            )
+
+            // NUEVO: Lógica de animación de carga mientras el LLM "piensa"
+            if (result.llmExplanation.isEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Se esta redactando el análisis...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
+            } else {
+                Text(
+                    text = result.llmExplanation,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
             // --- FIN DEL ESTILO ORIGINAL ---
 
             Spacer(modifier = Modifier.height(16.dp))
