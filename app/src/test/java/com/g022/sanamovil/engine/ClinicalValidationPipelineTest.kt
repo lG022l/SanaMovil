@@ -24,7 +24,7 @@ class ClinicalValidationPipelineTest {
             hasChestPain = true,
             radiatingPain = true,
             hasSevereBleeding = false,
-            hasBreathingDifficulty = true,
+            hasBreathingDifficulty = false,
             hasHighFever = false,
             isConscious = true
         )
