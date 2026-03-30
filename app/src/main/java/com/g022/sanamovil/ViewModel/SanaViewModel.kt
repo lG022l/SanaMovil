@@ -250,6 +250,7 @@ class SanaViewModel : ViewModel() {
             } catch (e: Exception) {
                 println("❌ ERROR AUDITORÍA: No se pudo guardar el log - ${e.message}")
             }
+            //hola
         }
     }
 
