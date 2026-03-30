@@ -41,6 +41,9 @@ class SanaViewModel : ViewModel() {
     private val ruleEngine = ClinicalRuleEngine()
     private val explanationGenerator = ExplanationGenerator()
 
+    // 🔥 CAMBIO 1: Variable para guardar el texto original del usuario
+    private var originalUserInput: String = ""
+
     fun updateInput(text: String) {
         uiState = uiState.copy(inputText = text)
     }
@@ -98,12 +101,15 @@ class SanaViewModel : ViewModel() {
     fun updateConsciousness(loss: Boolean) { uiState = uiState.copy(hasLossOfConsciousness = loss) }
     fun updateRadiation(radiates: Boolean) { uiState = uiState.copy(hasRadiatingPain = radiates) }
 
-    // 3. Modificamos processTriage para que sea INSTANTÁNEO
+    // 🔥 CAMBIO 2: Guardar el texto original cuando el usuario inicia el triaje
     fun processTriage(transcription: String) {
         if (!isLlamaLoaded) {
             setLoading(false, "Error: El modelo de IA no está cargado aún.")
             return
         }
+
+        // 🔥 GUARDAR EL TEXTO ORIGINAL DEL USUARIO
+        originalUserInput = transcription
 
         // 1. Detección rápida de palabras clave (sin usar la IA, toma 0.01 segundos)
         val lowerText = transcription.lowercase()
@@ -127,7 +133,7 @@ class SanaViewModel : ViewModel() {
         )
     }
 
-    // 4. Esta función se llama cuando el usuario le da "Continuar" en el Wizard
+    // 🔥 CAMBIO 3: Usar el texto original al generar la explicación
     fun submitWizardAndCalculate() {
         val temp = temporarySymptoms ?: return
 
@@ -149,8 +155,12 @@ class SanaViewModel : ViewModel() {
                 val clinicalRiskLevel = engineEval.riskLevel
                 val triggeredRules = engineEval.triggeredRules
 
-                // 2. Generamos el prompt para la IA
-                val explanationPrompt = explanationGenerator.buildExplanationPrompt(finalSymptoms, clinicalRiskLevel)
+                // 🔥 2. AHORA PASAMOS EL TEXTO ORIGINAL AL PROMPT
+                val explanationPrompt = explanationGenerator.buildExplanationPrompt(
+                    originalUserText = originalUserInput,  // ← TEXTO ORIGINAL DEL USUARIO
+                    symptoms = finalSymptoms,
+                    riskLevel = clinicalRiskLevel
+                )
 
                 // 3. Obtenemos los textos legales inmutables de nuestra biblioteca
                 val urgency = ResponseLibrary.mapRiskToUrgency(clinicalRiskLevel)
