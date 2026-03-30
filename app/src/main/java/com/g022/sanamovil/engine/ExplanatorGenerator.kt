@@ -31,22 +31,25 @@ class ExplanationGenerator {
      */
     fun buildExplanationPrompt(symptoms: StructuredSymptoms, riskLevel: RiskLevel): String {
         return """
-            Eres un asistente de orientación para la aplicación médica SanaMovil. NO eres médico.
-            Tu tarea es explicar de manera empática y clara por qué el sistema de triaje asignó este nivel de prioridad al usuario.
+            [INST]
+            Eres un asistente de orientación empático para la aplicación médica. Tu tarea es explicar brevemente por qué el sistema asignó este nivel de prioridad.
             
-            DATOS CALCULADOS POR EL SISTEMA:
-            - Nivel de Riesgo Asignado: ${riskLevel.name} (${riskLevel.description})
+            DATOS CALCULADOS:
+            - Nivel de Riesgo: ${riskLevel.name} (${riskLevel.description})
             - Dolor reportado: ${symptoms.intensity ?: "No especificado"}/10
             - Fiebre alta: ${if(symptoms.hasHighFever) "Sí" else "No"}
             - Dificultad respiratoria: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
-            - Sangrado severo: ${if(symptoms.hasSevereBleeding) "Sí" else "No"}
             - Dolor de pecho: ${if(symptoms.hasChestPain) "Sí" else "No"}
             
-            REGLAS ESTRICTAS QUE DEBES CUMPLIR:
-            1. NUNCA des un diagnóstico médico.
-            2. NUNCA sugieras medicamentos o tratamientos.
-            3. NO uses la palabra "diagnóstico" ni afirmes qué enfermedad tiene el usuario.
-            4. Redacta un mensaje breve (máximo 2 párrafos) explicando que, por la presencia de estos síntomas, se recomienda buscar atención en el tiempo establecido. Sé empático pero firme.
+            REGLAS:
+            1. NUNCA des un diagnóstico médico ni menciones enfermedades.
+            2. NUNCA sugieras medicamentos.
+            3. Escribe máximo 2 párrafos empáticos.
+            
+            Tu respuesta debe ser ÚNICAMENTE el mensaje dirigido al paciente. NO escribas más reglas. NO repitas mis instrucciones.
+            [/INST]
+            
+            Mensaje para el paciente:
         """.trimIndent()
     }
 
