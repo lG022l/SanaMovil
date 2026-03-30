@@ -828,12 +828,9 @@ fun TriageResultCard(uiState: UiState) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(0.dp),
         colors = CardDefaults.cardColors(
-            // Ajustado el alpha a 0.1f para mantener el sombreado original
-            containerColor = uiState.emergencyLevel.color.copy(alpha = 0.1f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.1f)        ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 

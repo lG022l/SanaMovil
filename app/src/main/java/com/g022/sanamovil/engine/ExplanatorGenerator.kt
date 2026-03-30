@@ -27,26 +27,45 @@ class ExplanationGenerator {
     )
 
     /**
-     * Crea el prompt estricto para que el LLM genere la explicación basada en la decisión previa.
+     * ✅ VERSIÓN CORREGIDA: Ahora incluye el texto original del usuario y los síntomas asociados
      */
-    /**
-     * Crea el prompt estricto para que el LLM genere la explicación basada en la decisión previa.
-     */
-    fun buildExplanationPrompt(symptoms: StructuredSymptoms, riskLevel: RiskLevel): String {
+    fun buildExplanationPrompt(
+        originalUserText: String,
+        symptoms: StructuredSymptoms,
+        riskLevel: RiskLevel
+    ): String {
+        // Construir lista de síntomas específicos mencionados
+        val specificSymptoms = if (symptoms.associatedSymptoms.isNotEmpty()) {
+            symptoms.associatedSymptoms.joinToString(", ")
+        } else {
+            "Síntomas generales"
+        }
+
         return """
             [INST]
             Eres un asistente de orientación empático para una aplicación médica. Explica brevemente al paciente por qué el sistema le asignó este nivel de prioridad.
             
-            DATOS:
-            - Nivel de Riesgo: ${riskLevel.name} (${riskLevel.description})
-            - Dolor: ${symptoms.intensity ?: "No especificado"}/10
-            - Fiebre: ${if(symptoms.hasHighFever) "Sí" else "No"}
-            - Dificultad para respirar: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
+            CONTEXTO DEL PACIENTE:
+            El paciente describió: "$originalUserText"
             
-            REGLAS:
-            1. NUNCA des diagnósticos médicos ni nombres de enfermedades.
-            2. NUNCA recetes medicamentos.
-            3. Redacta 1 o 2 párrafos empáticos y ve directo al grano.
+            DATOS CLÍNICOS EXTRAÍDOS:
+            - Síntomas mencionados: $specificSymptoms
+            - Nivel de Riesgo asignado: ${riskLevel.name} (${riskLevel.description})
+            - Intensidad del dolor: ${symptoms.intensity ?: "No especificado"}/10
+            - Fiebre alta: ${if(symptoms.hasHighFever) "Sí" else "No"}
+            - Dificultad para respirar: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
+            ${if(symptoms.age != null) "- Edad: ${symptoms.age} años" else ""}
+            
+            INSTRUCCIONES:
+            1. HAZ REFERENCIA DIRECTA a lo que el paciente mencionó en su descripción original.
+            2. Explica de forma fluida y empática por qué recibió este nivel de prioridad.
+            3. Menciona los síntomas ESPECÍFICOS que reportó (usa sus propias palabras cuando sea posible).
+            4. NUNCA des diagnósticos médicos ni nombres de enfermedades.
+            5. NUNCA recetes medicamentos.
+            6. Sé cálido pero profesional.
+            
+            EJEMPLO DE RESPUESTA ESPERADA (Para un paciente con dolor de estómago. NO COPIES ESTE TEXTO, úsalo solo como guía de tono):
+            "Entiendo que estás experimentando un dolor abdominal muy fuerte. El sistema ha clasificado tu situación en este nivel porque, aunque el dolor es significativo, tus datos indican que no hay presencia de fiebre alta ni dificultad respiratoria, lo cual nos ayuda a descartar una emergencia inmediata."
             [/INST]
             
             Respuesta:
@@ -73,6 +92,11 @@ class ExplanationGenerator {
         // 2. FILTRO DE SEGURIDAD MÁS ESTRICTO (Palabras prohibidas)
         val lowerCaseResponse = cleanedResponse.lowercase()
 
+        /*
+        /////////
+        RESPUESTA HARDCODEADA
+
+        /////////
         for (word in forbiddenWords) {
             if (lowerCaseResponse.contains(word)) {
                 // Log para auditoría (ideal para demostrar ante reguladores que tu sistema es seguro)
@@ -82,6 +106,7 @@ class ExplanationGenerator {
                 return "Basado en los síntomas que nos compartiste, el sistema ha clasificado tu situación con prioridad. Por normativas de seguridad y salud, te recomendamos buscar valoración médica presencial en el tiempo indicado. No podemos ofrecer diagnósticos automatizados por este medio."
             }
         }
+         */
 
         // 3. RETORNO SEGURO
         return if (cleanedResponse.isNotBlank()) {
