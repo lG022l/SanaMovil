@@ -203,6 +203,7 @@ fun SanaAppScreen(
                 viewModel.setLoading(true, "Escuchando (3s)...")
                 onRecordRequest(3) { text ->
                     procesarEntrada(text)
+                    //commit
                 }
             }
         }
