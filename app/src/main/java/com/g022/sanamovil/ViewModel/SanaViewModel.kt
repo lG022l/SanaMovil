@@ -17,6 +17,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.g022.sanamovil.engine.TriageResult
 import com.g022.sanamovil.engine.ResponseLibrary
+import android.content.Context
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import com.g022.sanamovil.database.AppDatabase
+import com.g022.sanamovil.database.ClinicalDecisionLog
 
 class SanaViewModel : ViewModel() {
     var uiState by mutableStateOf(UiState())
@@ -214,4 +219,39 @@ class SanaViewModel : ViewModel() {
         // Agregar al historial
         recentQueries.add(0, "Simulación - ${level.label}")
     }
+
+    /**
+     * Guarda el historial inalterable para auditorías clínicas (COFEPRIS/Fase 10)
+     */
+    fun guardarLogAuditoria(
+        context: Context,
+        inputUsuario: String,
+        respuestaIA: String,
+        reglas: String,
+        nivelRiesgo: String
+    ) {
+        viewModelScope.launch {
+            try {
+                // Abrimos la caja negra
+                val dao = AppDatabase.getDatabase(context).clinicalDecisionDao()
+
+                // Creamos el reporte
+                val log = ClinicalDecisionLog(
+                    inputCompleto = inputUsuario,
+                    outputGenerado = respuestaIA,
+                    reglasActivadas = reglas,
+                    nivelRiesgoAsignado = nivelRiesgo,
+                    versionAlgoritmo = "v1.0.0"
+                )
+
+                // Lo guardamos para siempre
+                dao.insertDecisionLog(log)
+                println("✅ AUDITORÍA: Caso clínico guardado exitosamente en la base de datos local.")
+            } catch (e: Exception) {
+                println("❌ ERROR AUDITORÍA: No se pudo guardar el log - ${e.message}")
+            }
+        }
+    }
+
+
 }
