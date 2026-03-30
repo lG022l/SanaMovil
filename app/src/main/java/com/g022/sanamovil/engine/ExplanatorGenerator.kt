@@ -46,18 +46,30 @@ class ExplanationGenerator {
             2. NUNCA sugieras medicamentos.
             3. Escribe máximo 2 párrafos empáticos.
             
-            Tu respuesta debe ser ÚNICAMENTE el mensaje dirigido al paciente. NO escribas más reglas. NO repitas mis instrucciones.
+            Tu respuesta debe ser ÚNICAMENTE el mensaje dirigido al paciente, sin saludos largos ni despedidas.
             [/INST]
-            
-            Mensaje para el paciente:
         """.trimIndent()
     }
 
     /**
-     * Guardrail: Filtro de seguridad que audita la respuesta del LLM.
+     * Guardrail: Filtro de seguridad que audita la respuesta del LLM y limpia alucinaciones.
      */
     fun validateAndFilterResponse(llmResponse: String): String {
-        val lowerCaseResponse = llmResponse.lowercase()
+        // 1. TIJERAS: Limpieza de alucinaciones y loops de texto del modelo local
+        var cleanedResponse = llmResponse
+            .substringBefore("```")  // Corta bloques de código o comillas raras
+            .substringBefore("[INST]") // Por si alucina etiquetas
+            .substringBefore("Mensaje para el paciente:") // Por si repite partes del prompt
+            .trim()
+
+        // Eliminar secuencias infinitas de puntos o comas (ej. "......" o ",,,,") comunes en alucinaciones
+        cleanedResponse = cleanedResponse.replace(Regex("([.`*~_\\-,])\\1{3,}"), ".")
+
+        // Eliminar saltos de línea excesivos (reduce huecos blancos gigantes)
+        cleanedResponse = cleanedResponse.replace(Regex("\n{3,}"), "\n\n")
+
+        // 2. FILTRO DE SEGURIDAD MÁS ESTRICTO (Palabras prohibidas)
+        val lowerCaseResponse = cleanedResponse.lowercase()
 
         for (word in forbiddenWords) {
             if (lowerCaseResponse.contains(word)) {
@@ -69,7 +81,11 @@ class ExplanationGenerator {
             }
         }
 
-        // Si pasa la validación, devolvemos la respuesta original del LLM
-        return llmResponse
+        // 3. RETORNO SEGURO
+        return if (cleanedResponse.isNotBlank()) {
+            cleanedResponse
+        } else {
+            "Análisis de síntomas completado. Por favor, sigue la acción sugerida en la tarjeta superior."
+        }
     }
 }
