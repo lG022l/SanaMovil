@@ -29,25 +29,27 @@ class ExplanationGenerator {
     /**
      * Crea el prompt estricto para que el LLM genere la explicación basada en la decisión previa.
      */
+    /**
+     * Crea el prompt estricto para que el LLM genere la explicación basada en la decisión previa.
+     */
     fun buildExplanationPrompt(symptoms: StructuredSymptoms, riskLevel: RiskLevel): String {
         return """
             [INST]
-            Eres un asistente de orientación empático para la aplicación médica. Tu tarea es explicar brevemente por qué el sistema asignó este nivel de prioridad.
+            Eres un asistente de orientación empático para una aplicación médica. Explica brevemente al paciente por qué el sistema le asignó este nivel de prioridad.
             
-            DATOS CALCULADOS:
+            DATOS:
             - Nivel de Riesgo: ${riskLevel.name} (${riskLevel.description})
-            - Dolor reportado: ${symptoms.intensity ?: "No especificado"}/10
-            - Fiebre alta: ${if(symptoms.hasHighFever) "Sí" else "No"}
-            - Dificultad respiratoria: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
-            - Dolor de pecho: ${if(symptoms.hasChestPain) "Sí" else "No"}
+            - Dolor: ${symptoms.intensity ?: "No especificado"}/10
+            - Fiebre: ${if(symptoms.hasHighFever) "Sí" else "No"}
+            - Dificultad para respirar: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
             
             REGLAS:
-            1. NUNCA des un diagnóstico médico ni menciones enfermedades.
-            2. NUNCA sugieras medicamentos.
-            3. Escribe máximo 2 párrafos empáticos.
-            
-            Tu respuesta debe ser ÚNICAMENTE el mensaje dirigido al paciente, sin saludos largos ni despedidas.
+            1. NUNCA des diagnósticos médicos ni nombres de enfermedades.
+            2. NUNCA recetes medicamentos.
+            3. Redacta 1 o 2 párrafos empáticos y ve directo al grano.
             [/INST]
+            
+            Respuesta:
         """.trimIndent()
     }
 
