@@ -13,4 +13,4 @@
 * **v0.9.0 (Beta):** Solo LLM. Deprecado por falta de determinismo clínico.
 * **v1.0.0 (Actual):** Arquitectura híbrida (Reglas Duras + Explicación Empática).
 
-*(Nota: Cualquier modificación a la lógica del `ClinicalRuleEngine` requerirá una actualización de la versión menor/mayor y una re-ejecución del dataset de validación `dataset_v1.json`).*
+*(Nota: Cualquier modificación a la lógica del `ClinicalRuleEngine` requerirá una actualización de la versión menor/mayor y una re-ejecución del dataset de validación, `dataset_v1.json`).*
