@@ -25,6 +25,9 @@ import com.g022.sanamovil.ViewModel.SanaViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.activity.viewModels
+import androidx.lifecycle.ViewModelProvider
+
 
 // --- ACTIVITY PRINCIPAL ---
 class MainActivity : ComponentActivity() {
@@ -99,10 +102,16 @@ class MainActivity : ComponentActivity() {
 
 
                     // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
+                    // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
                     composable("home_screen") {
+                        // 1. Aquí creamos la fábrica para el AndroidViewModel
+                        val factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+                        // 2. Aquí creamos el ViewModel asegurando que reciba la aplicación (para la BD)
+                        val sharedViewModel: SanaViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+
                         SanaAppScreen(
                             onRecordRequest = { duration, callback -> grabarYProcesarAudio(duration, callback) },
-                            onAnalyzeRequest = { text, viewModel -> procesarTexto(text, viewModel) },
+                            onAnalyzeRequest = { text, viewModelParam -> procesarTexto(text, viewModelParam) },
                             activityContext = this@MainActivity
                         )
                     }
@@ -294,3 +303,4 @@ class MainActivity : ComponentActivity() {
     """.trimIndent()
     }
 }
+//Fin del documento, saludos
