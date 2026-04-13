@@ -1,0 +1,18 @@
+[
+  {
+    "case_id": "SIM_001",
+    "context": "Mujer 46 años, embarazo 11 semanas, trabajo físico",
+    "symptoms": {
+      "intensity": 7,
+      "hasChestPain": false,
+      "radiatingPain": false,
+      "hasSevereBleeding": true,
+      "hasBreathingDifficulty": false,
+      "hasHighFever": false,
+      "isConscious": true
+    },
+    "expected_risk_level": "RED",
+    "expected_action": "TRANSFER",
+    "doctor_notes": "Hemorragia en primer trimestre es bandera roja prioritaria."
+  }
+]
