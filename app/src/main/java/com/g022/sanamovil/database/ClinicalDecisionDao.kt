@@ -7,9 +7,8 @@ import androidx.room.Query
 @Dao
 interface ClinicalDecisionDao {
 
-    // Inserta un nuevo registro en la bitácora
     @Insert
-    suspend fun insertDecisionLog(log: ClinicalDecisionLog)
+    suspend fun insertDecisionLog(log: ClinicalDecisionLog): Long
 
     // Recupera todo el historial ordenado desde el más reciente (para reportes/auditorías)
     @Query("SELECT * FROM clinical_decisions_log ORDER BY timestamp DESC")
