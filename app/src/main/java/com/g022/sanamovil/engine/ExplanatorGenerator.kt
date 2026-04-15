@@ -34,16 +34,25 @@ class ExplanationGenerator {
         symptoms: StructuredSymptoms,
         riskLevel: RiskLevel
     ): String {
-        // Construir lista de síntomas específicos mencionados
         val specificSymptoms = if (symptoms.associatedSymptoms.isNotEmpty()) {
             symptoms.associatedSymptoms.joinToString(", ")
         } else {
             "Síntomas generales"
         }
 
+        // FORMATO NATIVO DE LLAMA 3.2
         return """
-            [INST]
+            <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+            
             Eres un asistente de orientación empático para una aplicación médica. Explica brevemente al paciente por qué el sistema le asignó este nivel de prioridad.
+            
+            INSTRUCCIONES:
+            1. HAZ REFERENCIA DIRECTA a lo que el paciente mencionó.
+            2. Explica de forma fluida y empática por qué recibió este nivel de prioridad.
+            3. NUNCA des diagnósticos médicos ni nombres de enfermedades.
+            4. NUNCA recetes medicamentos.
+            5. Sé cálido pero profesional.
+            <|eot_id|><|start_header_id|>user<|end_header_id|>
             
             CONTEXTO DEL PACIENTE:
             El paciente describió: "$originalUserText"
@@ -55,20 +64,7 @@ class ExplanationGenerator {
             - Fiebre alta: ${if(symptoms.hasHighFever) "Sí" else "No"}
             - Dificultad para respirar: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
             ${if(symptoms.age != null) "- Edad: ${symptoms.age} años" else ""}
-            
-            INSTRUCCIONES:
-            1. HAZ REFERENCIA DIRECTA a lo que el paciente mencionó en su descripción original.
-            2. Explica de forma fluida y empática por qué recibió este nivel de prioridad.
-            3. Menciona los síntomas ESPECÍFICOS que reportó (usa sus propias palabras cuando sea posible).
-            4. NUNCA des diagnósticos médicos ni nombres de enfermedades.
-            5. NUNCA recetes medicamentos.
-            6. Sé cálido pero profesional.
-            
-            EJEMPLO DE RESPUESTA ESPERADA (Para un paciente con dolor de estómago. NO COPIES ESTE TEXTO, úsalo solo como guía de tono):
-            "Entiendo que estás experimentando un dolor abdominal muy fuerte. El sistema ha clasificado tu situación en este nivel porque, aunque el dolor es significativo, tus datos indican que no hay presencia de fiebre alta ni dificultad respiratoria, lo cual nos ayuda a descartar una emergencia inmediata."
-            [/INST]
-            
-            Respuesta:
+            <|eot_id|><|start_header_id|>assistant<|end_header_id|>
         """.trimIndent()
     }
 

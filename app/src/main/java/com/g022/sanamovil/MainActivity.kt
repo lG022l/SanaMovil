@@ -129,7 +129,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // 2. Cargar Llama (MedGemma)
-        val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
+        val llamaModelName = "Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf"
         val llamaPath = getModelPath(llamaModelName)
 
         if (File(llamaPath).exists()) {
