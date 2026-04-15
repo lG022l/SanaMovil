@@ -72,39 +72,48 @@ class ExplanationGenerator {
      * Guardrail: Filtro de seguridad que audita la respuesta del LLM y limpia alucinaciones.
      */
     fun validateAndFilterResponse(llmResponse: String): String {
-        // 1. TIJERAS: Limpieza de alucinaciones y loops de texto del modelo local
+        // 1. TIJERAS: Limpieza adaptada a tokens de Llama 3.2
         var cleanedResponse = llmResponse
-            .substringBefore("```")  // Corta bloques de código o comillas raras
-            .substringBefore("[INST]") // Por si alucina etiquetas
-            .substringBefore("Mensaje para el paciente:") // Por si repite partes del prompt
+            .substringBefore("```")  // Corta bloques de código
+            .substringBefore("<|eot_id|>") // El verdadero token de fin de Llama 3
+            .substringBefore("<|start_header_id|>") // Por si intenta empezar otro turno
+            .substringBefore("Mensaje para el paciente:")
             .trim()
 
-        // Eliminar secuencias infinitas de puntos o comas (ej. "......" o ",,,,") comunes en alucinaciones
+        // 2. CORTAFUEGOS ANTI-LOOPS: Detectar si una frase se repite
+        val words = cleanedResponse.split(Regex("\\s+"))
+        if (words.size > 20) {
+            val lastTenWords = words.takeLast(10).joinToString(" ")
+            val previousTenWords = words.dropLast(10).takeLast(10).joinToString(" ")
+
+            // Si hay bucle, cortamos la cadena justo antes de la repetición
+            if (lastTenWords == previousTenWords) {
+                cleanedResponse = cleanedResponse.substringBefore(lastTenWords).trim()
+            }
+        }
+
+        // 3. Eliminar secuencias infinitas de puntuación (ej. "......" o ",,,,")
         cleanedResponse = cleanedResponse.replace(Regex("([.`*~_\\-,])\\1{3,}"), ".")
 
-        // Eliminar saltos de línea excesivos (reduce huecos blancos gigantes)
+        // 4. Eliminar saltos de línea excesivos
         cleanedResponse = cleanedResponse.replace(Regex("\n{3,}"), "\n\n")
 
-        // 2. FILTRO DE SEGURIDAD MÁS ESTRICTO (Palabras prohibidas)
+        // 5. FILTRO DE SEGURIDAD MÁS ESTRICTO (Palabras prohibidas)
         val lowerCaseResponse = cleanedResponse.lowercase()
 
         /*
         /////////
-        RESPUESTA HARDCODEADA
-
+        RESPUESTA HARDCODEADA (Descomentar cuando implementes forbiddenWords)
         /////////
         for (word in forbiddenWords) {
             if (lowerCaseResponse.contains(word)) {
-                // Log para auditoría (ideal para demostrar ante reguladores que tu sistema es seguro)
                 Log.w("SanaMovil_Guardrails", "¡Bypass detectado! Palabra prohibida: '$word'")
-
-                // Fallback seguro: Si el LLM rompe las reglas, devolvemos este texto pre-aprobado.
                 return "Basado en los síntomas que nos compartiste, el sistema ha clasificado tu situación con prioridad. Por normativas de seguridad y salud, te recomendamos buscar valoración médica presencial en el tiempo indicado. No podemos ofrecer diagnósticos automatizados por este medio."
             }
         }
-         */
+        */
 
-        // 3. RETORNO SEGURO
+        // 6. RETORNO SEGURO
         return if (cleanedResponse.isNotBlank()) {
             cleanedResponse
         } else {
