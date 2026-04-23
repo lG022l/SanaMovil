@@ -563,41 +563,6 @@ fun ProfileDialog(onDismiss: () -> Unit,
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    val shareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
-
-                    Button(onClick = {
-                        viewModel.exportarDatos(context) { uri ->
-                            uri?.let {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "application/octet-stream"
-                                    putExtra(Intent.EXTRA_STREAM, it)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(intent, "Enviar base de datos al supervisor"))
-                            }
-                        }
-                    }) {
-                        Text("Exportar Casos")
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    val filePickerLauncher = rememberLauncherForActivityResult(
-                        ActivityResultContracts.OpenDocument()
-                    ) { uri ->
-                        uri?.let { viewModel.importarDatos(context, it) }
-                    }
-
-                    Button(onClick = {
-                        filePickerLauncher.launch(arrayOf("*/*"))
-                    }) {
-                        Text("Importar Casos (Supervisor)")
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-
-
-
 
                     LazyColumn {
                         items(pacientesDePrueba) { paciente ->
