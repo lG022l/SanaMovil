@@ -1,6 +1,7 @@
 package com.g022.sanamovil
 
 import androidx.compose.ui.graphics.Color
+import com.g022.sanamovil.database.ClinicalDecisionLog
 
 enum class UserRole {
     OPERATOR,
@@ -43,7 +44,13 @@ data class UiState(
     val dashRojos: Int = 0,
     val dashAmarillos: Int = 0,
     val dashVerdes: Int = 0,
-    val dashOperadoresActivos: Int = 0
+    val dashOperadoresActivos: Int = 0,
+
+    // --- FASE 3: LISTA DE CASOS DEL DASHBOARD ---
+    // Usamos una lista vacía por defecto
+    val dashboardLogs: List<ClinicalDecisionLog> = emptyList(),
+    // Para saber qué botón de filtro está presionado ("TODOS", "CRITICO", "MODERADO", "LEVE")
+    val filtroPrioridadActivo: String = "TODOS"
 )
 
 enum class EmergencyLevel(val color: Color, val label: String) {

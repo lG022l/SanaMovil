@@ -221,8 +221,31 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         // Si entramos al modo supervisor, cargamos los datos
         if (role == UserRole.SUPERVISOR && context != null) {
             cargarMetricasDashboard(context)
+            cargarListaDeCasos(context) // Solo la llamamos, no la creamos aquí adentro
         }
     }
+
+    // 👇 DEFINIMOS LAS FUNCIONES AFUERA PARA QUE LA UI LAS PUEDA VER 👇
+
+    fun setFiltroPrioridad(filtro: String) {
+        uiState = uiState.copy(filtroPrioridadActivo = filtro)
+    }
+
+    fun cargarListaDeCasos(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dao = AppDatabase.getDatabase(context).clinicalDecisionDao()
+                val logs = dao.getAllAuditLogs()
+
+                withContext(Dispatchers.Main) {
+                    uiState = uiState.copy(dashboardLogs = logs)
+                }
+            } catch (e: Exception) {
+                println("Error al cargar lista de casos: ${e.message}")
+            }
+        }
+    }
+    // 👆 ======================================================== 👆
 
     fun setSupervisorTab(tabIndex: Int) {
         uiState = uiState.copy(supervisorSelectedTab = tabIndex)
