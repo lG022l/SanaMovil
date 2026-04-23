@@ -322,7 +322,7 @@ fun ConfigScreen(viewModel: SanaViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Configuración de Despliegue", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("deployment_config.json", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        //Text("deployment_config.json", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(modifier = Modifier.height(16.dp))
 
         // --- CAMPOS DE CONFIGURACIÓN ---
