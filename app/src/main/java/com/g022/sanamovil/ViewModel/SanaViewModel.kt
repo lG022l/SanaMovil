@@ -245,7 +245,10 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    // 👆 ======================================================== 👆
+    // --- FASE 3.5: SELECCIÓN DE CASOS ---
+    fun setCasoSeleccionado(caso: ClinicalDecisionLog?) {
+        uiState = uiState.copy(casoSeleccionadoParaDetalle = caso)
+    }
 
     fun setSupervisorTab(tabIndex: Int) {
         uiState = uiState.copy(supervisorSelectedTab = tabIndex)

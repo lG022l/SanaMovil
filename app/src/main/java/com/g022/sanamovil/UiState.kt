@@ -50,7 +50,10 @@ data class UiState(
     // Usamos una lista vacía por defecto
     val dashboardLogs: List<ClinicalDecisionLog> = emptyList(),
     // Para saber qué botón de filtro está presionado ("TODOS", "CRITICO", "MODERADO", "LEVE")
-    val filtroPrioridadActivo: String = "TODOS"
+    val filtroPrioridadActivo: String = "TODOS",
+
+    // --- FASE 3.5: DETALLES DE CASO ---
+    val casoSeleccionadoParaDetalle: ClinicalDecisionLog? = null
 )
 
 enum class EmergencyLevel(val color: Color, val label: String) {
