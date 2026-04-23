@@ -97,6 +97,10 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     fun updateConsciousness(loss: Boolean) { uiState = uiState.copy(hasLossOfConsciousness = loss) }
     fun updateRadiation(radiates: Boolean) { uiState = uiState.copy(hasRadiatingPain = radiates) }
 
+    fun updateWizardConsent(accepted: Boolean) {
+        uiState = uiState.copy(wizardConsentAccepted = accepted)
+    }
+
     fun processTriage(transcription: String) {
         if (!isLlamaLoaded) {
             setLoading(false, "Error: El modelo de IA no está cargado aún.")
@@ -126,6 +130,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     fun submitWizardAndCalculate() {
         val temp = temporarySymptoms ?: return
 
+        val consentimientoAceptado = uiState.wizardConsentAccepted
+
         val finalSymptoms = temp.copy(
             age = uiState.wizardAge.toIntOrNull() ?: temp.age,
             intensity = uiState.wizardIntensity.toInt(),
@@ -138,6 +144,9 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             setLoading(true, "Calculando nivel de riesgo...")
             withContext(Dispatchers.IO) {
+
+                val tiempoInicioMs = System.currentTimeMillis()
+
 
                 val engineEval = ruleEngine.evaluateSymptoms(finalSymptoms)
                 val clinicalRiskLevel = engineEval.riskLevel
@@ -181,14 +190,18 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // 🚀 FASE 10: GUARDADO FINAL EN BASE DE DATOS UNA VEZ QUE TERMINA EL STREAMING
-                // El getApplication() viene gratis porque cambiamos a AndroidViewModel
+                val tiempoFinMs = System.currentTimeMillis()
+                val duracionTotalProcesamiento = tiempoFinMs - tiempoInicioMs
+
+                // 4. GUARDADO FINAL EN BASE DE DATOS (ACTUALIZADO)
                 guardarLogAuditoria(
                     context = getApplication(),
                     inputUsuario = originalUserInput,
                     respuestaIA = explanationGenerator.validateAndFilterResponse(accumulatedExplanation),
-                    reglas = triggeredRulesList.joinToString(", "),
-                    nivelRiesgo = clinicalRiskLevel.name
+                    reglas = engineEval.triggeredRules.joinToString(", "), // Corrección menor sugerida aquí
+                    nivelRiesgo = engineEval.riskLevel.name,
+                    consentimiento = consentimientoAceptado,
+                    tiempoProcesamiento = duracionTotalProcesamiento
                 )
             }
         }
@@ -212,20 +225,30 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         inputUsuario: String,
         respuestaIA: String,
         reglas: String,
-        nivelRiesgo: String
+        nivelRiesgo: String,
+        consentimiento: Boolean,         // NUEVO
+        tiempoProcesamiento: Long        // NUEVO
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val dao = AppDatabase.getDatabase(context).clinicalDecisionDao()
+
+                // Instanciamos el Log con los campos recién agregados
                 val log = ClinicalDecisionLog(
                     inputCompleto = inputUsuario,
                     outputGenerado = respuestaIA,
                     reglasActivadas = reglas,
                     nivelRiesgoAsignado = nivelRiesgo,
-                    versionAlgoritmo = "v1.0.0"
+                    versionAlgoritmo = "v1.0.0",
+                    consentimientoAceptado = consentimiento,
+                    tiempoProcesamientoMs = tiempoProcesamiento,
+                    // ID de dispositivo por ahora lo dejamos estático,
+                    // después lo puedes jalar de SharedPreferences
+                    idDispositivoOrigen = "DISPOSITIVO_BRIGADA_01"
                 )
+
                 dao.insertDecisionLog(log)
-                println("✅ AUDITORÍA: Caso guardado exitosamente. Riesgo: $nivelRiesgo, Reglas: $reglas")
+                println("✅ AUDITORÍA: Caso guardado. Riesgo: $nivelRiesgo, Tiempo: ${tiempoProcesamiento}ms, Consentimiento: $consentimiento")
             } catch (e: Exception) {
                 println("❌ ERROR AUDITORÍA: No se pudo guardar el log - ${e.message}")
             }

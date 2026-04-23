@@ -22,6 +22,7 @@ fun TriageWizard(
     onIntensityChange: (Float) -> Unit,
     onConsciousnessChange: (Boolean) -> Unit,
     onRadiationChange: (Boolean) -> Unit,
+    onConsentChange: (Boolean) -> Unit,
     onSubmit: () -> Unit
 ) {
     Card(
@@ -108,16 +109,34 @@ fun TriageWizard(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 5. Consentimiento (NUEVO)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Checkbox(
+                    checked = uiState.wizardConsentAccepted,
+                    onCheckedChange = onConsentChange
+                )
+                Text(
+                    text = "Acepto el procesamiento local de mis síntomas para el triage.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Botón de Envío (Con Validación)
+            // Botón de Envío (Con Validación Actualizada)
             Button(
                 onClick = onSubmit,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                // Lógica de validación: El botón está deshabilitado si no ponen la edad
-                enabled = uiState.wizardAge.isNotEmpty()
+                // Lógica actualizada: Obliga a poner edad Y aceptar el consentimiento
+                enabled = uiState.wizardAge.isNotEmpty() && uiState.wizardConsentAccepted
             ) {
                 Text("Evaluar Síntomas", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }

@@ -24,6 +24,8 @@ data class UiState(
 
     val askAboutRadiation: Boolean = false,
     val hasRadiatingPain: Boolean = false,
+    // Dentro de tu data class UiState, agrega esto:
+    val wizardConsentAccepted: Boolean = false,
 
     val triageResult: com.g022.sanamovil.engine.TriageResult? = null,
 )

@@ -310,6 +310,7 @@ fun SanaAppScreen(
                             onIntensityChange = { viewModel.updateWizardIntensity(it) },
                             onConsciousnessChange = { viewModel.updateConsciousness(it) },
                             onRadiationChange = { viewModel.updateRadiation(it) },
+                            onConsentChange = { viewModel.updateWizardConsent(it) },
                             onSubmit = { viewModel.submitWizardAndCalculate() }
                         )
                     }
