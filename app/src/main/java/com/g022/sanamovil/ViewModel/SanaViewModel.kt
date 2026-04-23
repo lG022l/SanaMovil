@@ -225,6 +225,7 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         if (role == UserRole.SUPERVISOR && context != null) {
             cargarMetricasDashboard(context)
             cargarListaDeCasos(context) // Solo la llamamos, no la creamos aquí adentro
+            cargarConfiguracionLocal(context)
         }
     }
 
@@ -439,6 +440,64 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- FASE 6: FUNCIONES DE CONFIGURACIÓN ---
+    fun updateConfigNombre(nombre: String) { uiState = uiState.copy(configNombreBrigada = nombre) }
+    fun updateConfigNivel(nivel: String) { uiState = uiState.copy(configNivelRecursos = nivel) }
+    fun updateConfigContacto(contacto: String) { uiState = uiState.copy(configContactoEmergencia = contacto) }
+
+    fun guardarConfiguracionLocal(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Creamos un mapa con los datos
+                val configMap = mapOf(
+                    "nombre_brigada" to uiState.configNombreBrigada,
+                    "nivel_recursos" to uiState.configNivelRecursos,
+                    "contacto_emergencia" to uiState.configContactoEmergencia,
+                    "ultima_actualizacion" to System.currentTimeMillis().toString()
+                )
+
+                // Lo convertimos a JSON
+                val jsonString = Gson().toJson(configMap)
+
+                // Lo guardamos en la memoria interna (invisible para el usuario normal)
+                val file = File(context.filesDir, "deployment_config.json")
+                file.writeText(jsonString)
+
+                withContext(Dispatchers.Main) {
+                    uiState = uiState.copy(statusMessage = "✅ Configuración guardada correctamente")
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState = uiState.copy(statusMessage = "❌ Error al guardar JSON")
+                }
+            }
+        }
+    }
+
+    fun cargarConfiguracionLocal(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = File(context.filesDir, "deployment_config.json")
+                if (file.exists()) {
+                    val jsonString = file.readText()
+
+                    // Decodificamos el JSON
+                    val type = object : TypeToken<Map<String, String>>() {}.type
+                    val configMap: Map<String, String> = Gson().fromJson(jsonString, type)
+
+                    withContext(Dispatchers.Main) {
+                        uiState = uiState.copy(
+                            configNombreBrigada = configMap["nombre_brigada"] ?: "",
+                            configNivelRecursos = configMap["nivel_recursos"] ?: "Básico",
+                            configContactoEmergencia = configMap["contacto_emergencia"] ?: ""
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                println("No se pudo cargar la config (o no existe aún)")
+            }
+        }
+    }
 
 
 

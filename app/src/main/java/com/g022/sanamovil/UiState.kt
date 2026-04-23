@@ -56,7 +56,13 @@ data class UiState(
     val casoSeleccionadoParaDetalle: ClinicalDecisionLog? = null,
 
     val metricasPorOperador: Map<String, OperadorStats> = emptyMap(),
-    val alertasSistema: List<AlertaSana> = emptyList()
+    val alertasSistema: List<AlertaSana> = emptyList(),
+
+    // --- FASE 6: CONFIGURACIÓN DE DESPLIEGUE ---
+    val configNombreBrigada: String = "",
+    val configNivelRecursos: String = "Básico",
+    val configContactoEmergencia: String = "",
+
 )
 data class OperadorStats(
     val nombre: String,

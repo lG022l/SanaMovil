@@ -28,6 +28,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.g022.sanamovil.OperadorStats
 import com.g022.sanamovil.AlertaSana
 import com.g022.sanamovil.AlertaNivel
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -294,10 +296,13 @@ fun DetalleCasoDialog(
     }
 }
 
-// --- FASE 4: CONFIGURACIÓN Y EXPORTACIÓN ---
+
+// --- FASE 4 Y 6: CONFIGURACIÓN Y EXPORTACIÓN ---
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigScreen(viewModel: SanaViewModel) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val state = viewModel.uiState
 
     val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -305,15 +310,60 @@ fun ConfigScreen(viewModel: SanaViewModel) {
         uri?.let { viewModel.importarDatos(context, it) }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Configuración de Brigada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp))
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+        Text("Configuración de Despliegue", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("deployment_config.json", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Sincronización Offline", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Exporta la base de datos local encriptada para enviarla al servidor central, o importa un archivo de respaldo (.sana).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // --- CAMPOS DE CONFIGURACIÓN ---
+        OutlinedTextField(
+            value = state.configNombreBrigada,
+            onValueChange = { viewModel.updateConfigNombre(it) },
+            label = { Text("Nombre de la Brigada") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = state.configContactoEmergencia,
+            onValueChange = { viewModel.updateConfigContacto(it) },
+            label = { Text("Radio / Contacto Central") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
+        Text("Nivel de Recursos:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val opciones = listOf("Básico", "Intermedio", "Avanzado")
+            opciones.forEach { opcion ->
+                FilterChip(
+                    selected = state.configNivelRecursos == opcion,
+                    onClick = { viewModel.updateConfigNivel(opcion) },
+                    label = { Text(opcion) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = { viewModel.guardarConfiguracionLocal(context) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Guardar Parámetros")
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp))
+
+        // --- EXPORTACIÓN E IMPORTACIÓN ---
+        Text("Sincronización Offline", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {
@@ -328,11 +378,12 @@ fun ConfigScreen(viewModel: SanaViewModel) {
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth().height(50.dp)
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
         ) {
             Icon(Icons.Default.Upload, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Exportar Casos Locales")
+            Text("Exportar Casos Locales (AES)")
         }
 
         Spacer(modifier = Modifier.height(12.dp))
