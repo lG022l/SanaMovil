@@ -1,6 +1,7 @@
 package com.g022.sanamovil.Home
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -133,7 +134,10 @@ fun SanaAppScreen(
     var showUserProfile by remember { mutableStateOf(false) }
 
     if (showUserProfile) {
-        ProfileDialog(onDismiss = { showUserProfile = false })
+        ProfileDialog(
+            viewModel = viewModel, // 👇 LE PASAMOS EL VIEWMODEL AQUÍ
+            onDismiss = { showUserProfile = false }
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -468,7 +472,8 @@ fun InputArea(
 }
 
 @Composable
-fun ProfileDialog(onDismiss: () -> Unit) {
+fun ProfileDialog(onDismiss: () -> Unit,
+                  viewModel: SanaViewModel,) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     var selectedPatient by remember { mutableStateOf<Paciente?>(null) }
@@ -507,6 +512,42 @@ fun ProfileDialog(onDismiss: () -> Unit) {
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
+
+                    val shareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+
+                    Button(onClick = {
+                        viewModel.exportarDatos(context) { uri ->
+                            uri?.let {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/octet-stream"
+                                    putExtra(Intent.EXTRA_STREAM, it)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Enviar base de datos al supervisor"))
+                            }
+                        }
+                    }) {
+                        Text("Exportar Casos")
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    val filePickerLauncher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        uri?.let { viewModel.importarDatos(context, it) }
+                    }
+
+                    Button(onClick = {
+                        filePickerLauncher.launch(arrayOf("*/*"))
+                    }) {
+                        Text("Importar Casos (Supervisor)")
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+
+
+
 
                     LazyColumn {
                         items(pacientesDePrueba) { paciente ->

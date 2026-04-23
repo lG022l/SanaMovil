@@ -2,10 +2,12 @@ package com.g022.sanamovil.ViewModel
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.g022.sanamovil.EmergencyLevel
@@ -18,9 +20,12 @@ import com.g022.sanamovil.engine.ResponseLibrary
 import com.g022.sanamovil.engine.RiskLevel
 import com.g022.sanamovil.engine.SymptomExtractor
 import com.g022.sanamovil.engine.TriageResult
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import com.google.gson.reflect.TypeToken
 
 // IMPORTANTE: Cambiamos "ViewModel()" por "AndroidViewModel(application)"
 // para poder acceder a la base de datos sin problemas de Contexto.
@@ -254,4 +259,64 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // En SanaViewModel.kt
+    fun exportarDatos(context: Context, onResult: (Uri?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dao = AppDatabase.getDatabase(context).clinicalDecisionDao()
+                val logs = dao.getAllAuditLogs() //
+
+                // 1. Convertir a JSON
+                val jsonString = Gson().toJson(logs)
+
+                // 2. Encriptar
+                val encryptedData = CryptoUtils.encrypt(jsonString)
+
+                // 3. Crear archivo en la carpeta de caché para compartir
+                val file = File(context.cacheDir, "SanaMovil_Backup_${System.currentTimeMillis()}.sana")
+                file.writeText(encryptedData)
+
+                // 4. Obtener URI segura para compartir
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                withContext(Dispatchers.Main) { onResult(uri) }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { onResult(null) }
+            }
+        }
+    }
+
+    // En SanaViewModel.kt
+    fun importarDatos(context: Context, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Leer el contenido del URI
+                val encryptedData = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+
+                if (encryptedData != null) {
+                    // 2. Desencriptar
+                    val decryptedJson = CryptoUtils.decrypt(encryptedData)
+
+                    // 3. Convertir de JSON a Lista
+                    val listType = object : TypeToken<List<ClinicalDecisionLog>>() {}.type
+                    val logs: List<ClinicalDecisionLog> = Gson().fromJson(decryptedJson, listType)
+
+                    // 4. Guardar en la base de datos local del supervisor
+                    val dao = AppDatabase.getDatabase(context).clinicalDecisionDao()
+                    dao.insertAll(logs)
+
+                    withContext(Dispatchers.Main) {
+                        // Notificar éxito en la UI
+                        uiState = uiState.copy(statusMessage = "✅ Importación exitosa: ${logs.size} registros añadidos")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    uiState = uiState.copy(statusMessage = "❌ Error al importar: Archivo inválido o corrupto")
+                }
+            }
+        }
+    }
+
+
 }
