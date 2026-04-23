@@ -29,6 +29,8 @@ import com.g022.sanamovil.OperadorStats
 import com.g022.sanamovil.AlertaSana
 import com.g022.sanamovil.AlertaNivel
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardOptions
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +40,15 @@ fun SupervisorDashboard(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit
 ) {
+    // 👇 NUEVO: Obtenemos el contexto actual de la pantalla
+    val context = LocalContext.current
+
+    // 👇 NUEVO: Forzamos la carga de métricas y casos apenas entremos al modo Supervisor
+    LaunchedEffect(Unit) {
+        viewModel.cargarMetricasDashboard(context)
+        viewModel.cargarListaDeCasos(context)
+    }
+
     val tabs = listOf("General", "Casos", "Métricas", "Alertas", "Config")
     val icons = listOf(
         Icons.Default.Dashboard,
@@ -52,8 +63,7 @@ fun SupervisorDashboard(
             TopAppBar(
                 title = { Text("Panel de Supervisor", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.primary
                 ),
                 actions = {
                     // Botón para salir del modo supervisor (volver a brigadista)

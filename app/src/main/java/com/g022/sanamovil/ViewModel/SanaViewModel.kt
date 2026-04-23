@@ -376,6 +376,9 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
                 dao.insertDecisionLog(log)
                 println("✅ AUDITORÍA: Caso guardado. Riesgo: $nivelRiesgo, Tiempo: ${tiempoProcesamiento}ms, Consentimiento: $consentimiento")
+
+                cargarListaDeCasos(context)
+                cargarMetricasDashboard(context)
             } catch (e: Exception) {
                 println("❌ ERROR AUDITORÍA: No se pudo guardar el log - ${e.message}")
             }

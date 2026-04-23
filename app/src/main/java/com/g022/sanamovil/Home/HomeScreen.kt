@@ -145,6 +145,7 @@ fun SanaAppScreen(
     LaunchedEffect(Unit) {
         viewModel.setLoading(true, "Cargando IA y Modelos...")
         activityContext.initModels(viewModel)
+        viewModel.cargarListaDeCasos(activityContext)
         viewModel.setLoading(false, "Sistema listo. ¿Cuál es la situación?")
     }
 
@@ -229,31 +230,59 @@ fun SanaAppScreen(
                 ModalDrawerSheet {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            "Historial",
+                            "Historial de Casos",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        if (viewModel.recentQueries.isEmpty()) {
+                        // 👇 AHORA USAMOS state.dashboardLogs EN LUGAR DE recentQueries
+                        if (state.dashboardLogs.isEmpty()) {
                             Text(
-                                "No hay consultas recientes",
+                                "No hay consultas registradas en la base de datos.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             LazyColumn {
-                                items(viewModel.recentQueries) { query ->
-                                    Text(
-                                        text = query,
+                                items(state.dashboardLogs) { log ->
+                                    // Formateamos la fecha (Necesitarás importar java.text.SimpleDateFormat y java.util.Date)
+                                    val date = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(log.timestamp))
+
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
                                             .clickable {
                                                 scope.launch { drawerState.close() }
-                                            },
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
+                                                // Opcional: Aquí puedes agregar lógica si quieres que al tocar
+                                                // un historial, este se abra en la pantalla principal.
+                                            }
+                                            .padding(vertical = 12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = log.nivelRiesgoAsignado,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = date,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            // Recortamos el texto para que no ocupe demasiado espacio
+                                            text = if (log.inputCompleto.length > 50) log.inputCompleto.take(50) + "..." else log.inputCompleto,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 2
+                                        )
+                                    }
                                     HorizontalDivider()
                                 }
                             }
