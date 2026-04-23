@@ -98,6 +98,8 @@ import com.g022.sanamovil.UiState
 import com.g022.sanamovil.ViewModel.SanaViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import com.g022.sanamovil.UserRole
 
 data class Paciente(
     val id: Int,
@@ -212,193 +214,212 @@ fun SanaAppScreen(
         }
     )
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Historial",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+    if (state.currentRole == UserRole.SUPERVISOR) {
+        // VISTA DE SUPERVISOR
+        SupervisorDashboard(
+            viewModel = viewModel,
+            selectedTab = state.supervisorSelectedTab,
+            onTabSelected = { viewModel.setSupervisorTab(it) }
+        )
+    } else {
 
-                    if (viewModel.recentQueries.isEmpty()) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            "No hay consultas recientes",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "Historial",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
                         )
-                    } else {
-                        LazyColumn {
-                            items(viewModel.recentQueries) { query ->
-                                Text(
-                                    text = query,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp)
-                                        .clickable {
-                                            scope.launch { drawerState.close() }
-                                        },
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                HorizontalDivider()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.logov3),
-                                contentDescription = "Logo SanaMovil",
-                                modifier = Modifier.size(150.dp)
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, "Menú")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showUserProfile = true }) {
-                            Icon(Icons.Default.AccountCircle, "Perfil Usuario")
-                        }
-                    }
-                )
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(16.dp)
-            ) {
-                // Usamos AnimatedVisibility para que el espacio colapse suavemente cuando ya no hay mensaje
-                AnimatedVisibility(visible = state.isLoading || state.statusMessage.isNotBlank()) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        if (state.isLoading) {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
-                        if (state.statusMessage.isNotBlank()) {
-                            Text(
-                                text = state.statusMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                    }
-                }
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                // --- LÓGICA DE VISTAS (FASE 8 y 9) ---
-                if (state.showWizard) {
-                    // Vista 1: El cuestionario Wizard
-                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        TriageWizard(
-                            uiState = state,
-                            onAgeChange = { viewModel.updateWizardAge(it) },
-                            onDurationChange = { viewModel.updateWizardDuration(it) },
-                            onIntensityChange = { viewModel.updateWizardIntensity(it) },
-                            onConsciousnessChange = { viewModel.updateConsciousness(it) },
-                            onRadiationChange = { viewModel.updateRadiation(it) },
-                            onConsentChange = { viewModel.updateWizardConsent(it) },
-                            onSubmit = { viewModel.submitWizardAndCalculate() }
-                        )
-                    }
-                } else if (state.triageResult != null) {
-                    // Vista 2: El resultado legal auditable de la Fase 9
-                    Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        TriageResultCard(uiState = state)
-                    }
-                } else if (state.analysisResult.isNotEmpty()) {
-                    // Vista 3: Legacy Fallback (para que no rompa código viejo)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = state.emergencyLevel.color.copy(alpha = 0.1f)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(16.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            if (state.emergencyLevel != EmergencyLevel.NONE) {
-                                Text(
-                                    text = state.emergencyLevel.label,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = state.emergencyLevel.color,
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
-                            }
+                        if (viewModel.recentQueries.isEmpty()) {
                             Text(
-                                text = state.analysisResult,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                    }
-                } else {
-                    // Vista 4: Pantalla de inicio vacía
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.HealthAndSafety,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Describe la situación",
-                                style = MaterialTheme.typography.titleLarge,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                text = "Escribe o usa el micrófono",
+                                "No hay consultas recientes",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        } else {
+                            LazyColumn {
+                                items(viewModel.recentQueries) { query ->
+                                    Text(
+                                        text = query,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                            .clickable {
+                                                scope.launch { drawerState.close() }
+                                            },
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    HorizontalDivider()
+                                }
+                            }
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                InputArea(
-                    text = state.inputText,
-                    onTextChanged = { viewModel.updateInput(it) },
-                    onSend = { procesarEntrada(state.inputText) },
-                    onMicClick = {
-                        if (ContextCompat.checkSelfPermission(activityContext, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            viewModel.setLoading(true, "Escuchando...")
-                            onRecordRequest(3) { text -> procesarEntrada(text) }
-                        } else {
-                            launcher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.logov3),
+                                    contentDescription = "Logo SanaMovil",
+                                    modifier = Modifier.size(150.dp)
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, "Menú")
+                            }
+                        },
+                        actions = {
+                            //admin
+                            IconButton(onClick = { viewModel.setRole(UserRole.SUPERVISOR) }) {
+                                Icon(Icons.Default.AdminPanelSettings, "Modo Supervisor")
+                            }
+                            //user
+                            IconButton(onClick = { showUserProfile = true }) {
+                                Icon(Icons.Default.AccountCircle, "Perfil Usuario")
+                            }
                         }
-                    },
-                    isEnabled = !state.isLoading
-                )
+                    )
+                }
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(16.dp)
+                ) {
+                    // Usamos AnimatedVisibility para que el espacio colapse suavemente cuando ya no hay mensaje
+                    AnimatedVisibility(visible = state.isLoading || state.statusMessage.isNotBlank()) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (state.isLoading) {
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            }
+                            if (state.statusMessage.isNotBlank()) {
+                                Text(
+                                    text = state.statusMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+                        }
+                    }
+
+                    // --- LÓGICA DE VISTAS (FASE 8 y 9) ---
+                    if (state.showWizard) {
+                        // Vista 1: El cuestionario Wizard
+                        Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                            TriageWizard(
+                                uiState = state,
+                                onAgeChange = { viewModel.updateWizardAge(it) },
+                                onDurationChange = { viewModel.updateWizardDuration(it) },
+                                onIntensityChange = { viewModel.updateWizardIntensity(it) },
+                                onConsciousnessChange = { viewModel.updateConsciousness(it) },
+                                onRadiationChange = { viewModel.updateRadiation(it) },
+                                onConsentChange = { viewModel.updateWizardConsent(it) },
+                                onSubmit = { viewModel.submitWizardAndCalculate() }
+                            )
+                        }
+                    } else if (state.triageResult != null) {
+                        // Vista 2: El resultado legal auditable de la Fase 9
+                        Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                            TriageResultCard(uiState = state)
+                        }
+                    } else if (state.analysisResult.isNotEmpty()) {
+                        // Vista 3: Legacy Fallback (para que no rompa código viejo)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            colors = CardDefaults.cardColors(
+                                containerColor = state.emergencyLevel.color.copy(alpha = 0.1f)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                if (state.emergencyLevel != EmergencyLevel.NONE) {
+                                    Text(
+                                        text = state.emergencyLevel.label,
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = state.emergencyLevel.color,
+                                        modifier = Modifier.padding(bottom = 12.dp)
+                                    )
+                                }
+                                Text(
+                                    text = state.analysisResult,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    } else {
+                        // Vista 4: Pantalla de inicio vacía
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.HealthAndSafety,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Describe la situación",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "Escribe o usa el micrófono",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    InputArea(
+                        text = state.inputText,
+                        onTextChanged = { viewModel.updateInput(it) },
+                        onSend = { procesarEntrada(state.inputText) },
+                        onMicClick = {
+                            if (ContextCompat.checkSelfPermission(
+                                    activityContext,
+                                    Manifest.permission.RECORD_AUDIO
+                                ) == PackageManager.PERMISSION_GRANTED
+                            ) {
+                                viewModel.setLoading(true, "Escuchando...")
+                                onRecordRequest(3) { text -> procesarEntrada(text) }
+                            } else {
+                                launcher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        isEnabled = !state.isLoading
+                    )
+                }
             }
         }
     }

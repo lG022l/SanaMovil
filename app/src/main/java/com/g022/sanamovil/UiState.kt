@@ -2,8 +2,13 @@ package com.g022.sanamovil
 
 import androidx.compose.ui.graphics.Color
 
+enum class UserRole {
+    OPERATOR,
+    SUPERVISOR
+}
 // Estados de la UI
 data class UiState(
+
     val inputText: String = "",
     val isLoading: Boolean = false,
     val statusMessage: String = "Iniciando sistemas...",
@@ -28,6 +33,17 @@ data class UiState(
     val wizardConsentAccepted: Boolean = false,
 
     val triageResult: com.g022.sanamovil.engine.TriageResult? = null,
+
+    val currentRole: UserRole = UserRole.OPERATOR,
+    val supervisorSelectedTab: Int = 0,
+
+    // --- MÉTRICAS DEL DASHBOARD SUPERVISOR ---
+    val dashTotalCasos: Int = 0,
+    val dashTiempoPromedio: String = "0s",
+    val dashRojos: Int = 0,
+    val dashAmarillos: Int = 0,
+    val dashVerdes: Int = 0,
+    val dashOperadoresActivos: Int = 0
 )
 
 enum class EmergencyLevel(val color: Color, val label: String) {

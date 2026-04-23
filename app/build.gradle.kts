@@ -100,13 +100,7 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
-
-    implementation("androidx.sqlite:sqlite-ktx:2.4.0")
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
-
 }
-
-
 
 ksp {
     arg("room.generateKotlin", "true")

@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import com.google.gson.reflect.TypeToken
+import com.g022.sanamovil.UserRole
 
 // IMPORTANTE: Cambiamos "ViewModel()" por "AndroidViewModel(application)"
 // para poder acceder a la base de datos sin problemas de Contexto.
@@ -198,6 +199,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                 val tiempoFinMs = System.currentTimeMillis()
                 val duracionTotalProcesamiento = tiempoFinMs - tiempoInicioMs
 
+
+
                 // 4. GUARDADO FINAL EN BASE DE DATOS (ACTUALIZADO)
                 guardarLogAuditoria(
                     context = getApplication(),
@@ -208,6 +211,61 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                     consentimiento = consentimientoAceptado,
                     tiempoProcesamiento = duracionTotalProcesamiento
                 )
+            }
+        }
+    }
+
+    // --- NAVEGACIÓN Y ROLES ---
+    fun setRole(role: UserRole, context: Context? = null) {
+        uiState = uiState.copy(currentRole = role)
+        // Si entramos al modo supervisor, cargamos los datos
+        if (role == UserRole.SUPERVISOR && context != null) {
+            cargarMetricasDashboard(context)
+        }
+    }
+
+    fun setSupervisorTab(tabIndex: Int) {
+        uiState = uiState.copy(supervisorSelectedTab = tabIndex)
+    }
+    fun cargarMetricasDashboard(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dao = AppDatabase.getDatabase(context).clinicalDecisionDao()
+                val logs = dao.getAllAuditLogs()
+
+                if (logs.isNotEmpty()) {
+                    // 1. Total de Casos
+                    val total = logs.size
+
+                    // 2. Tiempo Promedio (convertimos los milisegundos a formato "Xm Ys")
+                    val tiempoTotalMs = logs.sumOf { it.tiempoProcesamientoMs }
+                    val promedioMs = tiempoTotalMs / total
+                    val minutos = (promedioMs / 1000) / 60
+                    val segundos = (promedioMs / 1000) % 60
+                    val textoTiempo = if (minutos > 0) "${minutos}m ${segundos}s" else "${segundos}s"
+
+                    // 3. Distribución (Contamos cuántos hay de cada nivel)
+                    // Nota: Asegúrate de que los nombres coincidan con los que guardas (ej. EMERGENCIA, SEVERO, etc.)
+                    val rojos = logs.count { it.nivelRiesgoAsignado.contains("RED", ignoreCase = true) || it.nivelRiesgoAsignado.contains("EMERGENCIA", ignoreCase = true) || it.nivelRiesgoAsignado.contains("SEVERO", ignoreCase = true) }
+                    val amarillos = logs.count { it.nivelRiesgoAsignado.contains("YELLOW", ignoreCase = true) || it.nivelRiesgoAsignado.contains("MODERADO", ignoreCase = true) }
+                    val verdes = logs.count { it.nivelRiesgoAsignado.contains("GREEN", ignoreCase = true) || it.nivelRiesgoAsignado.contains("LEVE", ignoreCase = true) || it.nivelRiesgoAsignado.contains("NONE", ignoreCase = true) }
+
+                    // 4. Operadores Activos (Contamos cuántos dispositivos únicos hay)
+                    val operadores = logs.map { it.idDispositivoOrigen }.distinct().size
+
+                    withContext(Dispatchers.Main) {
+                        uiState = uiState.copy(
+                            dashTotalCasos = total,
+                            dashTiempoPromedio = textoTiempo,
+                            dashRojos = rojos,
+                            dashAmarillos = amarillos,
+                            dashVerdes = verdes,
+                            dashOperadoresActivos = operadores
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                println("Error al cargar métricas: ${e.message}")
             }
         }
     }
