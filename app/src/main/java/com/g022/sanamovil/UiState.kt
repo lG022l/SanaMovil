@@ -53,8 +53,26 @@ data class UiState(
     val filtroPrioridadActivo: String = "TODOS",
 
     // --- FASE 3.5: DETALLES DE CASO ---
-    val casoSeleccionadoParaDetalle: ClinicalDecisionLog? = null
+    val casoSeleccionadoParaDetalle: ClinicalDecisionLog? = null,
+
+    val metricasPorOperador: Map<String, OperadorStats> = emptyMap(),
+    val alertasSistema: List<AlertaSana> = emptyList()
 )
+data class OperadorStats(
+    val nombre: String,
+    val totalPacientes: Int,
+    val tiempoPromedioMs: Long,
+    val porcIncompletos: Float,
+    val distribucionRiesgo: Map<String, Int>
+)
+
+data class AlertaSana(
+    val titulo: String,
+    val descripcion: String,
+    val nivel: AlertaNivel
+)
+
+enum class AlertaNivel { INFO, WARNING, CRITICAL }
 
 enum class EmergencyLevel(val color: Color, val label: String) {
     NONE(Color.Transparent, ""),

@@ -25,6 +25,9 @@ import java.util.Locale
 import androidx.compose.ui.window.Dialog
 import android.content.Intent
 import androidx.activity.result.contract.ActivityResultContracts
+import com.g022.sanamovil.OperadorStats
+import com.g022.sanamovil.AlertaSana
+import com.g022.sanamovil.AlertaNivel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +78,8 @@ fun SupervisorDashboard(
             when (selectedTab) {
                 0 -> VistaGeneralSkeleton(viewModel) // <-- Aquí faltaba el viewModel
                 1 -> CasosScreen(viewModel)
-                2 -> MetricasSkeleton()
-                3 -> AlertasSkeleton()
+                2 -> MetricasScreen(viewModel)
+                3 -> AlertasScreen(viewModel)
                 4 -> ConfigScreen(viewModel)
             }
         }
@@ -345,12 +348,62 @@ fun ConfigScreen(viewModel: SanaViewModel) {
     }
 }
 @Composable
-fun MetricasSkeleton() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Rendimiento Operadores", style = MaterialTheme.typography.headlineSmall) }
+fun MetricasScreen(viewModel: SanaViewModel) {
+    val stats = viewModel.uiState.metricasPorOperador
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        item { Text("Rendimiento por Operador", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+
+        items(stats.values.toList()) { op ->
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(op.nombre, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Pacientes: ${op.totalPacientes}", style = MaterialTheme.typography.bodySmall)
+                        Text("Promedio: ${op.tiempoPromedioMs / 1000}s", style = MaterialTheme.typography.bodySmall)
+                    }
+                    // Una pequeña barra de progreso visual del tiempo
+                    LinearProgressIndicator(
+                        progress = { (op.tiempoPromedioMs / 300000f).coerceAtMost(1f) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        color = if (op.tiempoPromedioMs > 180000) Color.Red else MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
 }
 @Composable
-fun AlertasSkeleton() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Alertas del Sistema", style = MaterialTheme.typography.headlineSmall) }
+fun AlertasScreen(viewModel: SanaViewModel) {
+    val alertas = viewModel.uiState.alertasSistema
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Centro de Notificaciones", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (alertas.isEmpty()) {
+            Text("✅ No se detectan anomalías en el sistema.", color = Color(0xFF43A047))
+        } else {
+            alertas.forEach { alerta ->
+                val color = when(alerta.nivel) {
+                    AlertaNivel.CRITICAL -> Color(0xFFE53935)
+                    AlertaNivel.WARNING -> Color(0xFFFDD835)
+                    else -> MaterialTheme.colorScheme.primary
+                }
+
+                ListItem(
+                    headlineContent = { Text(alerta.titulo, fontWeight = FontWeight.Bold) },
+                    supportingContent = { Text(alerta.descripcion) },
+                    leadingContent = { Icon(Icons.Default.Warning, contentDescription = null, tint = color) },
+                    colors = ListItemDefaults.colors(containerColor = color.copy(alpha = 0.1f))
+                )
+                HorizontalDivider()
+            }
+        }
+    }
 }
 @Composable
 fun ConfigSkeleton() {

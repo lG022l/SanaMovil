@@ -27,6 +27,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import com.google.gson.reflect.TypeToken
 import com.g022.sanamovil.UserRole
+import com.g022.sanamovil.OperadorStats
+import com.g022.sanamovil.AlertaSana
+import com.g022.sanamovil.AlertaNivel
 
 // IMPORTANTE: Cambiamos "ViewModel()" por "AndroidViewModel(application)"
 // para poder acceder a la base de datos sin problemas de Contexto.
@@ -231,6 +234,40 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         uiState = uiState.copy(filtroPrioridadActivo = filtro)
     }
 
+    fun procesarMetricasYAlertas(logs: List<ClinicalDecisionLog>) {
+        if (logs.isEmpty()) return
+
+        // 1. Calcular métricas por operador (idDispositivoOrigen)
+        val stats = logs.groupBy { it.idDispositivoOrigen }.mapValues { (id, lista) ->
+            OperadorStats(
+                nombre = id,
+                totalPacientes = lista.size,
+                tiempoPromedioMs = lista.map { it.tiempoProcesamientoMs }.average().toLong(),
+                porcIncompletos = 0f, // Por ahora 0, luego podemos medir si falta el output
+                distribucionRiesgo = lista.groupBy { it.nivelRiesgoAsignado }.mapValues { it.value.size }
+            )
+        }
+
+        // 2. Generar Alertas Inteligentes
+        val nuevasAlertas = mutableListOf<AlertaSana>()
+
+        // Alerta: Tiempo promedio > 3 min (180,000 ms)
+        val tiempoGralMs = logs.map { it.tiempoProcesamientoMs }.average()
+        if (tiempoGralMs > 180000) {
+            nuevasAlertas.add(AlertaSana("Atención Lenta", "El tiempo promedio supera los 3 min.", AlertaNivel.CRITICAL))
+        }
+
+        // Alerta: Muchos casos críticos (Rojos)
+        val rojos = logs.count { it.nivelRiesgoAsignado.contains("RED") }
+        if (rojos > logs.size * 0.3) {
+            nuevasAlertas.add(AlertaSana("Saturación Crítica", "Más del 30% de casos son de alta prioridad.", AlertaNivel.WARNING))
+        }
+
+        uiState = uiState.copy(
+            metricasPorOperador = stats,
+            alertasSistema = nuevasAlertas
+        )
+    }
     fun cargarListaDeCasos(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -401,6 +438,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+
 
 
 }
