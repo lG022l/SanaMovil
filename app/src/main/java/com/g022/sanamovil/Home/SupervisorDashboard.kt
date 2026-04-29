@@ -32,6 +32,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -408,32 +410,123 @@ fun ConfigScreen(viewModel: SanaViewModel) {
         }
     }
 }
+// --- FASE 5: MÉTRICAS DE OPERADORES ---
 @Composable
 fun MetricasScreen(viewModel: SanaViewModel) {
-    val stats = viewModel.uiState.metricasPorOperador
+    // Si la base de datos ya tiene datos reales del motor, los usa.
+    // Si está vacía (porque aún no hay login), inyectamos datos falsos (MOCK) para ver el diseño.
+    val statsReales = viewModel.uiState.metricasPorOperador
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        item { Text("Rendimiento por Operador", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+    val operadoresAMostrar = if (statsReales.isNotEmpty()) {
+        statsReales.values.toList()
+    } else {
+        // DATOS FALSOS PARA PREVISUALIZAR EL DISEÑO
+        listOf(
+            com.g022.sanamovil.OperadorStats(
+                nombre = "Dr. Víctor Guzmán", totalPacientes = 45, tiempoPromedioMs = 125000, porcIncompletos = 2f,
+                distribucionRiesgo = mapOf("CRÍTICO" to 10, "MODERADO" to 20, "LEVE" to 15)
+            ),
+            com.g022.sanamovil.OperadorStats(
+                nombre = "Enf. María López", totalPacientes = 82, tiempoPromedioMs = 85000, porcIncompletos = 0f,
+                distribucionRiesgo = mapOf("CRÍTICO" to 5, "MODERADO" to 30, "LEVE" to 47)
+            ),
+            com.g022.sanamovil.OperadorStats(
+                nombre = "Paramédico Carlos R.", totalPacientes = 12, tiempoPromedioMs = 210000, porcIncompletos = 15f,
+                distribucionRiesgo = mapOf("CRÍTICO" to 8, "MODERADO" to 2, "LEVE" to 2)
+            )
+        )
+    }
 
-        items(stats.values.toList()) { op ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(op.nombre, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Pacientes: ${op.totalPacientes}", style = MaterialTheme.typography.bodySmall)
-                        Text("Promedio: ${op.tiempoPromedioMs / 1000}s", style = MaterialTheme.typography.bodySmall)
-                    }
-                    // Una pequeña barra de progreso visual del tiempo
-                    LinearProgressIndicator(
-                        progress = { (op.tiempoPromedioMs / 300000f).coerceAtMost(1f) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        color = if (op.tiempoPromedioMs > 180000) Color.Red else MaterialTheme.colorScheme.primary
-                    )
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text("Rendimiento del Personal", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Basado en el historial de triage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        items(operadoresAMostrar) { operador ->
+            OperadorCard(operador)
+        }
+    }
+}
+
+@Composable
+fun OperadorCard(op: com.g022.sanamovil.OperadorStats) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // CABECERA: Nombre y Total de pacientes
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(op.nombre, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                }
+                Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                    Text("${op.totalPacientes} Casos", color = Color.White, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // SECCIÓN 1: Velocidad (Tiempo Promedio)
+            val segundos = op.tiempoPromedioMs / 1000
+            val minutos = segundos / 60
+            val segsRestantes = segundos % 60
+            val textoTiempo = if(minutos > 0) "${minutos}m ${segsRestantes}s" else "${segsRestantes}s"
+
+            // Si tarda más de 3 minutos (180s), se pinta de rojo
+            val colorTiempo = if (segundos > 180) Color(0xFFE53935) else MaterialTheme.colorScheme.primary
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Tiempo Promedio:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(textoTiempo, style = MaterialTheme.typography.labelLarge, color = colorTiempo, fontWeight = FontWeight.Bold)
+            }
+            LinearProgressIndicator(
+                progress = { (segundos / 300f).coerceAtMost(1f) }, // Límite visual de 5 minutos
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 12.dp).height(6.dp),
+                color = colorTiempo,
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+
+            // SECCIÓN 2: Distribución de Triage
+            Text("Tendencia de Diagnósticos:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(4.dp))
+
+            val rojos = op.distribucionRiesgo["CRÍTICO"] ?: 0
+            val amarillos = op.distribucionRiesgo["MODERADO"] ?: 0
+            val verdes = op.distribucionRiesgo["LEVE"] ?: 0
+
+            BarraDistribucion(rojos, amarillos, verdes, op.totalPacientes)
+        }
+    }
+}
+
+// COMPONENTE: Una barra segmentada muy visual
+@Composable
+fun BarraDistribucion(rojos: Int, amarillos: Int, verdes: Int, total: Int) {
+    if (total == 0) return
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp))
+        ) {
+            if (rojos > 0) Box(modifier = Modifier.weight(rojos.toFloat()).fillMaxHeight().background(Color(0xFFE53935)))
+            if (amarillos > 0) Box(modifier = Modifier.weight(amarillos.toFloat()).fillMaxHeight().background(Color(0xFFFDD835)))
+            if (verdes > 0) Box(modifier = Modifier.weight(verdes.toFloat()).fillMaxHeight().background(Color(0xFF43A047)))
+        }
+
+        // Leyenda chiquita debajo de la barra
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("$rojos Críticos", fontSize = 10.sp, color = Color(0xFFE53935), fontWeight = FontWeight.Bold)
+            Text("$amarillos Moderados", fontSize = 10.sp, color = Color(0xFFFDD835).copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+            Text("$verdes Leves", fontSize = 10.sp, color = Color(0xFF43A047), fontWeight = FontWeight.Bold)
         }
     }
 }
