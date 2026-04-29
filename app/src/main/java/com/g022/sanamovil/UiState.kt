@@ -15,6 +15,9 @@ data class UiState(
     val statusMessage: String = "Iniciando sistemas...",
     val analysisResult: String = "",
     val emergencyLevel: EmergencyLevel = EmergencyLevel.NONE,
+    val isModelDownloaded: Boolean = false,
+    val isDownloading: Boolean = false,
+    val downloadProgress: Float = 0f,
 
     // --- NUEVAS VARIABLES PARA LA FASE 8 (WIZARD) ---
     val showWizard: Boolean = false, // Controla si se muestra la pantalla de preguntas

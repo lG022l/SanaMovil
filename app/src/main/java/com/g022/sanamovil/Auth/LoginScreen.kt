@@ -1,5 +1,6 @@
 package com.g022.sanamovil.Auth
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -37,17 +38,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.g022.sanamovil.UiState
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun LoginScreen(
     onLoginClick: (String, String) -> Unit,
     onRegisterClick: () -> Unit,
-    onForgotPasswordClick: () -> Unit
+    onForgotPasswordClick: () -> Unit,
+    isModelDownloaded: Boolean,
+    isDownloading: Boolean,
+    downloadProgress: Float,
+    onCheckModel: (Context) -> Unit,
+    onDownloadModel: (Context) -> Unit
 ) {
     // Variables de estado locales para la interfaz
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    // Ejecuta la verificación al abrir la pantalla
+    LaunchedEffect(Unit) {
+        onCheckModel(context)
+    }
 
     // NOTA: Asegúrate de tener una imagen llamada 'logo' en tu carpeta res/drawable
     val logoPainter = painterResource(id = R.drawable.logov3)
@@ -134,19 +148,27 @@ fun LoginScreen(
         // Botón Iniciar Sesión
         Button(
             onClick = { onLoginClick(email, password) },
+            // 🔒 BLOQUEO: Solo se activa si el modelo existe Y no se está descargando nada
+            enabled = isModelDownloaded && !isDownloading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
+                disabledContainerColor = Color.Gray // Se verá gris si está bloqueado
             ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            shape = MaterialTheme.shapes.medium
+            modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
-            Text("Iniciar sesión")
+            if (!isModelDownloaded) {
+                Text("Descarga el modelo para entrar")
+            } else {
+                Text("Iniciar sesión")
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+
+
+
+
 
         // Enlaces inferiores
         Row(
@@ -161,5 +183,50 @@ fun LoginScreen(
                 Text("¿Olvidaste tu contraseña?", color = MaterialTheme.colorScheme.primary)
             }
         }
+
+
+
+
+        Spacer(modifier = Modifier.height(16.dp))
+        if (isDownloading) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Descargando modelo: ${(downloadProgress * 100).toInt()}%",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { downloadProgress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            }
+        } else if (!isModelDownloaded) {
+            Button(
+                onClick = { onDownloadModel(context) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error, // Botón de alerta/rojo
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text("Descargar Modelo IA Médico")
+            }
+        } else {
+            Text(
+                text = "✓ Modelo IA instalado y listo",
+                color = Color(0xFF4CAF50), // Verde
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+
+
     }
 }

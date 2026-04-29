@@ -57,6 +57,8 @@ class MainActivity : ComponentActivity() {
         "suicidio", "matarme", "veneno", "brazo izquierdo"
     )
 
+    private val sanaViewModel: SanaViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -64,6 +66,9 @@ class MainActivity : ComponentActivity() {
 
                 // 1. Iniciamos el controlador de navegación
                 val navController = rememberNavController()
+
+                val llamaModelName = "Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf"
+                val modelDownloadUrl = "https://huggingface.co/RichardErkhov/Na0s_-_Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT-gguf/resolve/main/Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf?download=true"
 
                 // 2. Configuramos las rutas
                 NavHost(
@@ -82,7 +87,23 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onRegisterClick = { navController.navigate("registro_screen") },
-                            onForgotPasswordClick = { /* Pendiente */ }
+                            onForgotPasswordClick = { /* Pendiente */ },
+
+
+
+                            isModelDownloaded = sanaViewModel.uiState.isModelDownloaded,
+                            isDownloading = sanaViewModel.uiState.isDownloading,
+                            downloadProgress = sanaViewModel.uiState.downloadProgress,
+
+                            // Conectamos las funciones enviando el nombre del modelo
+                            onCheckModel = { context ->
+                                sanaViewModel.checkModelExists(context, llamaModelName)
+                            },
+                            onDownloadModel = { context ->
+                                sanaViewModel.downloadModel(context, modelDownloadUrl, llamaModelName)
+                            }
+
+
                         )
                     }
 
