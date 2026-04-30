@@ -23,13 +23,16 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.g022.sanamovil.ViewModel.SanaViewModel // <-- IMPORTANTE: Asegúrate de que esta ruta sea la tuya
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
-    onRegisterClick: (String, String) -> Unit,
-    onBackToLogin: () -> Unit
+    viewModel: SanaViewModel, // <-- NUEVO: Recibimos el ViewModel
+    onBackToLogin: () -> Unit,
+    onRegisterSuccess: () -> Unit // <-- NUEVO: Qué hacer si sale bien
 ) {
     var nombre by remember { mutableStateOf("") }
     var apellidoPaterno by remember { mutableStateOf("") }
@@ -37,6 +40,10 @@ fun RegisterScreen(
     var correo by remember { mutableStateOf("") }
     var contraseña by remember { mutableStateOf("") }
     var confirmarContraseña by remember { mutableStateOf("") }
+
+    // --- NUEVOS ESTADOS PARA SUPABASE ---
+    var isLoading by remember { mutableStateOf(false) }
+    var mensajeError by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
@@ -97,113 +104,110 @@ fun RegisterScreen(
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
-            // --- CAMPOS DE NOMBRE ---
+            // --- CAMPOS DE TEXTO (Iguales a los tuyos) ---
             RoundedInputField(
-                value = nombre,
-                onValueChange = { nombre = it },
-                placeholder = "Nombre",
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                )
+                value = nombre, onValueChange = { nombre = it }, placeholder = "Nombre",
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next)
             )
             Spacer(modifier = Modifier.height(16.dp))
 
             RoundedInputField(
-                value = apellidoPaterno,
-                onValueChange = { apellidoPaterno = it },
-                placeholder = "Apellido paterno",
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                )
+                value = apellidoPaterno, onValueChange = { apellidoPaterno = it }, placeholder = "Apellido paterno",
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next)
             )
             Spacer(modifier = Modifier.height(16.dp))
 
             RoundedInputField(
-                value = apellidoMaterno,
-                onValueChange = { apellidoMaterno = it },
-                placeholder = "Apellido materno",
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- CAMPO DE CORREO ---
-            RoundedInputField(
-                value = correo,
-                onValueChange = { correo = it },
-                placeholder = "Correo electrónico",
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- CAMPOS DE CONTRASEÑA ---
-            RoundedInputField(
-                value = contraseña,
-                onValueChange = { contraseña = it },
-                placeholder = "Contraseña",
-                isPassword = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next
-                )
+                value = apellidoMaterno, onValueChange = { apellidoMaterno = it }, placeholder = "Apellido materno",
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next)
             )
             Spacer(modifier = Modifier.height(16.dp))
 
             RoundedInputField(
-                value = confirmarContraseña,
-                onValueChange = { confirmarContraseña = it },
-                placeholder = "Confirmar contraseña",
-                isPassword = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                )
+                value = correo, onValueChange = { correo = it }, placeholder = "Correo electrónico",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
             )
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // --- BOTONES ---
+            RoundedInputField(
+                value = contraseña, onValueChange = { contraseña = it }, placeholder = "Contraseña", isPassword = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            RoundedInputField(
+                value = confirmarContraseña, onValueChange = { confirmarContraseña = it }, placeholder = "Confirmar contraseña", isPassword = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- NUEVO: MOSTRAR ERRORES ---
+            if (mensajeError.isNotEmpty()) {
+                Text(
+                    text = mensajeError,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+
+            // --- BOTÓN ACTUALIZADO ---
             Button(
                 onClick = {
-                    if (contraseña == confirmarContraseña && correo.isNotEmpty()) {
-                        onRegisterClick(correo, contraseña)
-                    } else {
-                        // TODO: Mostrar mensaje de error (ej. Snackbar)
+                    focusManager.clearFocus() // Ocultar teclado
+
+                    // 1. Validaciones locales
+                    if (nombre.isEmpty() || correo.isEmpty() || contraseña.isEmpty()) {
+                        mensajeError = "Por favor llena todos los campos obligatorios."
+                        return@Button
                     }
+                    if (contraseña != confirmarContraseña) {
+                        mensajeError = "Las contraseñas no coinciden."
+                        return@Button
+                    }
+                    if (contraseña.length < 6) {
+                        mensajeError = "La contraseña debe tener al menos 6 caracteres."
+                        return@Button
+                    }
+
+                    // 2. Enviar a Supabase
+                    isLoading = true
+                    mensajeError = ""
+
+                    viewModel.registrarUsuarioEnNube(
+                        correo = correo,
+                        contrasena = contraseña,
+                        onExito = {
+                            isLoading = false
+                            onRegisterSuccess() // Mandar a la pantalla de éxito o login
+                        },
+                        onError = { error ->
+                            isLoading = false
+                            mensajeError = error // Mostrar por qué falló
+                        }
+                    )
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = !isLoading, // Se deshabilita mientras carga
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(
-                    text = "Registrarse",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                // Si está cargando, muestra la ruedita. Si no, muestra el texto.
+                if (isLoading) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Registrarse", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            TextButton(
-                onClick = { onBackToLogin() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Cancelar y volver al inicio",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
-                )
+            TextButton(onClick = { onBackToLogin() }, modifier = Modifier.fillMaxWidth(), enabled = !isLoading) {
+                Text("Cancelar y volver al inicio", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
             }
 
             Spacer(modifier = Modifier.height(30.dp))
@@ -211,7 +215,7 @@ fun RegisterScreen(
     }
 }
 
-// Composable auxiliar para reutilizar el diseño de los campos de texto
+// ... Tu Composable RoundedInputField se queda EXACTAMENTE igual ...
 @Composable
 fun RoundedInputField(
     value: String,

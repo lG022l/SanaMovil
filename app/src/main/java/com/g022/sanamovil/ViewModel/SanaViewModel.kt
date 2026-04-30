@@ -30,6 +30,9 @@ import com.g022.sanamovil.UserRole
 import com.g022.sanamovil.OperadorStats
 import com.g022.sanamovil.AlertaSana
 import com.g022.sanamovil.AlertaNivel
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import com.g022.sanamovil.database.SupabaseHelper
 
 // IMPORTANTE: Cambiamos "ViewModel()" por "AndroidViewModel(application)"
 // para poder acceder a la base de datos sin problemas de Contexto.
@@ -503,5 +506,27 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
+    // --- FASE 2: AUTENTICACIÓN EN LA NUBE (SUPABASE) ---
+    fun registrarUsuarioEnNube(correo: String, contrasena: String, onExito: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Aquí usamos a nuestro ayudante para conectarnos a Supabase
+                SupabaseHelper.client.auth.signUpWith(Email) {
+                    email = correo
+                    password = contrasena
+                }
+
+                // Si llegamos aquí, el registro fue un éxito
+                withContext(Dispatchers.Main) {
+                    onExito()
+                }
+            } catch (e: Exception) {
+                // Si algo falla (ej. contraseña muy corta, correo ya existe)
+                withContext(Dispatchers.Main) {
+                    onError(e.localizedMessage ?: "Error desconocido al registrarse")
+                }
+            }
+        }
+    }
 
 }

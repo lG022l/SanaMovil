@@ -100,6 +100,14 @@ dependencies {
     implementation("androidx.room:room-runtime:$room_version")
     implementation("androidx.room:room-ktx:$room_version")
     ksp("androidx.room:room-compiler:$room_version")
+
+    // --- SUPABASE & KTOR (Backend en la Nube) ---
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:2.4.2") // Para Login/Registro
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.4.2") // Para Base de Datos
+    implementation("io.ktor:ktor-client-android:2.3.10") // Motor de red necesario
+    implementation("io.ktor:ktor-client-core:2.3.10")
+    implementation("io.ktor:ktor-utils:2.3.10")
+
 }
 
 ksp {

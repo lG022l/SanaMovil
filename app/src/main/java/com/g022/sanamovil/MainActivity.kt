@@ -88,20 +88,25 @@ class MainActivity : ComponentActivity() {
 
                     // Ruta 2: Pantalla de Registro
                     composable("registro_screen") {
+                        // 1. Necesitamos el ViewModel aquí también
+                        val factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+                        val sharedViewModel: SanaViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+
+                        // 2. Llamamos a RegisterScreen con los nuevos parámetros
                         RegisterScreen(
-                            onRegisterClick = { correo, pass ->
+                            viewModel = sharedViewModel,
+                            onBackToLogin = {
+                                navController.popBackStack()
+                            },
+                            onRegisterSuccess = {
+                                // Si se registró bien en Supabase, lo mandamos al Login
                                 navController.navigate("login_screen") {
                                     popUpTo("login_screen") { inclusive = true }
                                 }
-                            },
-                            onBackToLogin = {
-                                navController.popBackStack()
                             }
                         )
                     }
 
-
-                    // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
                     // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
                     composable("home_screen") {
                         // 1. Aquí creamos la fábrica para el AndroidViewModel
