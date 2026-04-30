@@ -27,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.activity.viewModels
 import androidx.lifecycle.ViewModelProvider
+import android.widget.Toast
 
 
 // --- ACTIVITY PRINCIPAL ---
@@ -78,51 +79,51 @@ class MainActivity : ComponentActivity() {
 
                     // Ruta 1: Pantalla de Login
                     composable("login_screen") {
+                        // 1. Necesitamos el ViewModel para inyectarlo en el Login
+                        val factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+                        val sharedViewModel: SanaViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+
                         LoginScreen(
-                            onLoginClick = { email, password ->
-                                if (email == "admin" && password == "1234") {
-                                    navController.navigate("home_screen") {
-                                        popUpTo("login_screen") { inclusive = true }
-                                    }
+                            viewModel = sharedViewModel,
+                            onLoginSuccess = {
+                                // ¡Si Supabase dice que la contraseña es correcta, entramos!
+                                navController.navigate("home_screen") {
+                                    popUpTo("login_screen") { inclusive = true }
                                 }
                             },
                             onRegisterClick = { navController.navigate("registro_screen") },
                             onForgotPasswordClick = { /* Pendiente */ },
-
-
-
-                            isModelDownloaded = sanaViewModel.uiState.isModelDownloaded,
-                            isDownloading = sanaViewModel.uiState.isDownloading,
-                            downloadProgress = sanaViewModel.uiState.downloadProgress,
-
-                            // Conectamos las funciones enviando el nombre del modelo
-                            onCheckModel = { context ->
-                                sanaViewModel.checkModelExists(context, llamaModelName)
-                            },
-                            onDownloadModel = { context ->
-                                sanaViewModel.downloadModel(context, modelDownloadUrl, llamaModelName)
-                            }
-
-
+                            // Pasamos los parámetros de descarga de modelo (OJO: Asegúrate de tener estas variables en tu ViewModel o Activity)
+                            isModelDownloaded = sharedViewModel.isLlamaLoaded, // Ajusta si lo manejas distinto
+                            isDownloading = false, // Ajusta según tu lógica de descarga
+                            downloadProgress = 0f, // Ajusta según tu lógica de descarga
+                            onCheckModel = { /* Tu lógica de check */ },
+                            onDownloadModel = { /* Tu lógica de descarga */ }
                         )
                     }
 
                     // Ruta 2: Pantalla de Registro
                     composable("registro_screen") {
+                        val factory = ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+                        val sharedViewModel: SanaViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = factory)
+
                         RegisterScreen(
-                            onRegisterClick = { correo, pass ->
+                            viewModel = sharedViewModel,
+                            onBackToLogin = {
+                                navController.popBackStack()
+                            },
+                            onRegisterSuccess = {
+                                // 1. Mostramos el mensaje emergente en pantalla
+                                Toast.makeText(this@MainActivity, "Cuenta creada con éxito. Ya puedes iniciar sesión.", Toast.LENGTH_LONG).show()
+
+                                // 2. Regresamos al Login
                                 navController.navigate("login_screen") {
                                     popUpTo("login_screen") { inclusive = true }
                                 }
-                            },
-                            onBackToLogin = {
-                                navController.popBackStack()
                             }
                         )
                     }
 
-
-                    // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
                     // Ruta 3: Pantalla Principal de la Demo (SanaAppScreen)
                     composable("home_screen") {
                         // 1. Aquí creamos la fábrica para el AndroidViewModel

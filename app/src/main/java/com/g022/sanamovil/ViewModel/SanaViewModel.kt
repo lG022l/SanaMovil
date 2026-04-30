@@ -30,6 +30,9 @@ import com.g022.sanamovil.UserRole
 import com.g022.sanamovil.OperadorStats
 import com.g022.sanamovil.AlertaSana
 import com.g022.sanamovil.AlertaNivel
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import com.g022.sanamovil.database.SupabaseHelper
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -508,113 +511,48 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-
-
-
-    private val EXPECTED_MODEL_SIZE_BYTES = 1972049L * 1024L
-
-    fun checkModelExists(context: Context, modelName: String) {
-        val file = File(context.filesDir, modelName)
-
-        if (file.exists()) {
-            val currentSize = file.length()
-
-            // Damos un pequeñísimo margen de 5KB por diferencias de cálculo del sistema de archivos,
-            // pero aseguramos que está prácticamente completo.
-            if (currentSize >= (EXPECTED_MODEL_SIZE_BYTES - 5120)) {
-                println("✅ Modelo verificado: Tamaño correcto ($currentSize bytes)")
-                uiState = uiState.copy(isModelDownloaded = true)
-            } else {
-                // El archivo existe pero pesa menos (ej. los 25MB que mencionas)
-                println("⚠️ Modelo corrupto o incompleto ($currentSize bytes). Borrando...")
-                file.delete() // Lo borramos para forzar una descarga limpia
-                uiState = uiState.copy(isModelDownloaded = false)
-            }
-        } else {
-            uiState = uiState.copy(isModelDownloaded = false)
-        }
-    }
-
-    fun downloadModel(context: Context, modelUrl: String, modelName: String) {
+    // --- FASE 2: AUTENTICACIÓN EN LA NUBE (SUPABASE) ---
+    fun registrarUsuarioEnNube(correo: String, contrasena: String, onExito: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val file = File(context.filesDir, modelName)
-
             try {
+                // Aquí usamos a nuestro ayudante para conectarnos a Supabase
+                SupabaseHelper.client.auth.signUpWith(Email) {
+                    email = correo
+                    password = contrasena
+                }
+
+                // Si llegamos aquí, el registro fue un éxito
                 withContext(Dispatchers.Main) {
-                    uiState = uiState.copy(
-                        isDownloading = true,
-                        downloadProgress = 0f,
-                        statusMessage = "Conectando al servidor..."
-                    )
+                    onExito()
                 }
-
-                val url = URL(modelUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connect()
-
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    throw Exception("Error del servidor: ${connection.responseCode}")
-                }
-
-                // Validamos que el servidor nos diga cuánto pesa el archivo (si está disponible)
-                val fileLength = connection.contentLength
-                val input = connection.inputStream
-                val output = FileOutputStream(file)
-
-                val data = ByteArray(4096)
-                var total: Long = 0
-                var count: Int
-
-                while (input.read(data).also { count = it } != -1) {
-                    total += count
-
-                    // Calculamos el progreso usando la constante si el servidor no envía el tamaño
-                    val targetLength = if (fileLength > 0) fileLength.toLong() else EXPECTED_MODEL_SIZE_BYTES
-                    val progress = (total.toFloat() / targetLength.toFloat())
-
-                    withContext(Dispatchers.Main) {
-                        uiState = uiState.copy(downloadProgress = progress)
-                    }
-
-                    output.write(data, 0, count)
-                }
-
-                output.flush()
-                output.close()
-                input.close()
-
-                // ÚLTIMA BARRERA DE SEGURIDAD:
-                // Verificamos el archivo físico recién escrito antes de cantar victoria
-                val finalFileSize = file.length()
-                if (finalFileSize >= (EXPECTED_MODEL_SIZE_BYTES - 5120)) {
-                    withContext(Dispatchers.Main) {
-                        uiState = uiState.copy(
-                            isDownloading = false,
-                            isModelDownloaded = true,
-                            statusMessage = "Modelo IA instalado correctamente"
-                        )
-                    }
-                } else {
-                    // Si el ciclo terminó pero el archivo pesa menos de 1.9GB, la red falló silenciosamente
-                    throw Exception("La descarga se interrumpió y quedó incompleta")
-                }
-
             } catch (e: Exception) {
-                // Si hubo cualquier error (desconexión, etc) y hay un archivo a medias, lo borramos
-                if (file.exists()) { file.delete() }
-
+                // Si algo falla (ej. contraseña muy corta, correo ya existe)
                 withContext(Dispatchers.Main) {
-                    uiState = uiState.copy(
-                        isDownloading = false,
-                        isModelDownloaded = false, // Bloqueamos el login
-                        statusMessage = "Descarga fallida. Intenta de nuevo."
-                    )
+                    onError(e.localizedMessage ?: "Error desconocido al registrarse")
                 }
             }
         }
     }
+    fun iniciarSesionEnNube(correo: String, contrasena: String, onExito: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Le decimos a Supabase que intente hacer login
+                SupabaseHelper.client.auth.signInWith(Email) {
+                    email = correo
+                    password = contrasena
+                }
 
-
-
+                // Si la contraseña es correcta, entramos aquí
+                withContext(Dispatchers.Main) {
+                    onExito()
+                }
+            } catch (e: Exception) {
+                // Si la contraseña es incorrecta o el usuario no existe
+                withContext(Dispatchers.Main) {
+                    onError("Correo o contraseña incorrectos.") // Mensaje amigable
+                }
+            }
+        }
+    }
 
 }
