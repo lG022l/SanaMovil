@@ -33,6 +33,11 @@ import com.g022.sanamovil.AlertaNivel
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import com.g022.sanamovil.database.SupabaseHelper
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 // IMPORTANTE: Cambiamos "ViewModel()" por "AndroidViewModel(application)"
 // para poder acceder a la base de datos sin problemas de Contexto.
