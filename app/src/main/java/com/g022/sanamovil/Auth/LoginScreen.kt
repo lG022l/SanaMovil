@@ -18,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -30,19 +29,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.g022.sanamovil.R
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.g022.sanamovil.UiState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import com.g022.sanamovil.ViewModel.SanaViewModel // <-- IMPORTANTE: Verifica esta ruta
 
 @Composable
 fun LoginScreen(
-    onLoginClick: (String, String) -> Unit,
+    viewModel: SanaViewModel, // <-- NUEVO: Recibimos el ViewModel para conectarnos a Supabase
+    onLoginSuccess: () -> Unit, // <-- NUEVO: Qué hacer si el login es exitoso
     onRegisterClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
     isModelDownloaded: Boolean,
@@ -51,27 +46,23 @@ fun LoginScreen(
     onCheckModel: (Context) -> Unit,
     onDownloadModel: (Context) -> Unit
 ) {
-    // Variables de estado locales para la interfaz
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
+    // --- NUEVOS ESTADOS PARA SUPABASE ---
+    var isLoading by remember { mutableStateOf(false) }
+    var mensajeError by remember { mutableStateOf("") }
+
     val context = LocalContext.current
-
-    // Ejecuta la verificación al abrir la pantalla
-    LaunchedEffect(Unit) {
-        onCheckModel(context)
-    }
-
-    // NOTA: Asegúrate de tener una imagen llamada 'logo' en tu carpeta res/drawable
-    val logoPainter = painterResource(id = R.drawable.logov3)
-
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
+    val logoPainter = painterResource(id = R.drawable.logov3)
 
-    // Color principal extraído para facilitar su cambio (Color tinto/vino)
-    //val primaryColor = Color(0xFFAA3099)
+    LaunchedEffect(Unit) {
+        onCheckModel(context)
+    }
 
     Column(
         modifier = Modifier
@@ -83,12 +74,7 @@ fun LoginScreen(
                     keyboardController?.hide()
                 })
             }
-            .background(
-                //  Para que los colores sean especificamente unos --> brush = Brush.verticalGradient(
-                    MaterialTheme.colorScheme.background
-                  //  Para que los colores sean especificamente unos --> colors = listOf(Color(0xFFfdfdfe), Color(0xFFfdfdfe))
-               // )
-            )
+            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -100,64 +86,80 @@ fun LoginScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Campo de Correo
+        // --- CAMPOS DE TEXTO (Iguales a los tuyos) ---
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Correo electrónico", color = MaterialTheme.colorScheme.primary) },
+            value = email, onValueChange = { email = it }, label = { Text("Correo electrónico", color = MaterialTheme.colorScheme.primary) },
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                cursorColor = MaterialTheme.colorScheme.primary,
-                focusedLabelColor = MaterialTheme.colorScheme.primary
-            ),
-            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.primary, cursorColor = MaterialTheme.colorScheme.primary, focusedLabelColor = MaterialTheme.colorScheme.primary),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground), singleLine = true, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next)
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Campo de Contraseña
         OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Contraseña", color = MaterialTheme.colorScheme.primary) },
+            value = password, onValueChange = { password = it }, label = { Text("Contraseña", color = MaterialTheme.colorScheme.primary) },
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             trailingIcon = {
                 val icon = if (showPassword) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                IconButton(onClick = { showPassword = !showPassword }) {
-                    Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                }
+                IconButton(onClick = { showPassword = !showPassword }) { Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
             },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-                cursorColor = MaterialTheme.colorScheme.primary,
-                focusedLabelColor = MaterialTheme.colorScheme.primary
-            ),
-            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground),
-            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = MaterialTheme.colorScheme.primary, unfocusedBorderColor = MaterialTheme.colorScheme.primary, cursorColor = MaterialTheme.colorScheme.primary, focusedLabelColor = MaterialTheme.colorScheme.primary),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground), visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done)
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Botón Iniciar Sesión
+        // --- NUEVO: MOSTRAR ERRORES ---
+        if (mensajeError.isNotEmpty()) {
+            Text(
+                text = mensajeError,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
+        // --- BOTÓN INICIAR SESIÓN ACTUALIZADO ---
         Button(
-            onClick = { onLoginClick(email, password) },
-            // 🔒 BLOQUEO: Solo se activa si el modelo existe Y no se está descargando nada
-            enabled = isModelDownloaded && !isDownloading,
+            onClick = {
+                focusManager.clearFocus() // Ocultar teclado
+
+                // 1. Validar que no estén vacíos
+                if (email.isEmpty() || password.isEmpty()) {
+                    mensajeError = "Por favor ingresa tu correo y contraseña."
+                    return@Button
+                }
+
+                // 2. Intentar login con Supabase
+                isLoading = true
+                mensajeError = ""
+
+                viewModel.iniciarSesionEnNube(
+                    correo = email,
+                    contrasena = password,
+                    onExito = {
+                        isLoading = false
+                        onLoginSuccess() // Si es exitoso, navegamos al Dashboard
+                    },
+                    onError = { error ->
+                        isLoading = false
+                        mensajeError = error // Mostrar error
+                    }
+                )
+            },
+            // BLOQUEO: Solo se activa si el modelo existe, no se está descargando, Y no estamos esperando a Supabase
+            enabled = isModelDownloaded && !isDownloading && !isLoading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
-                disabledContainerColor = Color.Gray // Se verá gris si está bloqueado
+                disabledContainerColor = Color.Gray
             ),
             modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
             if (!isModelDownloaded) {
                 Text("Descarga el modelo para entrar")
+            } else if (isLoading) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
             } else {
                 Text("Iniciar sesión")
             }
@@ -165,68 +167,26 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
-
-
-
-
-        // Enlaces inferiores
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            TextButton(onClick = onRegisterClick) {
-                Text("¿No tienes una cuenta?\nRegístrate aquí", color = MaterialTheme.colorScheme.primary)
-            }
-
-            TextButton(onClick = onForgotPasswordClick) {
-                Text("¿Olvidaste tu contraseña?", color = MaterialTheme.colorScheme.primary)
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = onRegisterClick) { Text("¿No tienes una cuenta?\nRegístrate aquí", color = MaterialTheme.colorScheme.primary) }
+            TextButton(onClick = onForgotPasswordClick) { Text("¿Olvidaste tu contraseña?", color = MaterialTheme.colorScheme.primary) }
         }
 
-
-
-
         Spacer(modifier = Modifier.height(16.dp))
+
+        // --- LÓGICA DE DESCARGA DE MODELO (Intacta) ---
         if (isDownloading) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Descargando modelo: ${(downloadProgress * 100).toInt()}%",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "Descargando modelo: ${(downloadProgress * 100).toInt()}%", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { downloadProgress },
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                LinearProgressIndicator(progress = { downloadProgress }, modifier = Modifier.fillMaxWidth().height(8.dp), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.surfaceVariant)
             }
         } else if (!isModelDownloaded) {
-            Button(
-                onClick = { onDownloadModel(context) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error, // Botón de alerta/rojo
-                    contentColor = Color.White
-                ),
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = MaterialTheme.shapes.medium
-            ) {
+            Button(onClick = { onDownloadModel(context) }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = Color.White), modifier = Modifier.fillMaxWidth().height(50.dp), shape = MaterialTheme.shapes.medium) {
                 Text("Descargar Modelo IA Médico")
             }
         } else {
-            Text(
-                text = "✓ Modelo IA instalado y listo",
-                color = Color(0xFF4CAF50), // Verde
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "✓ Modelo IA instalado y listo", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
         }
-
-
-
     }
 }

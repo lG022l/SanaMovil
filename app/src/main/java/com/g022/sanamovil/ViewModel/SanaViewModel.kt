@@ -533,5 +533,26 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+    fun iniciarSesionEnNube(correo: String, contrasena: String, onExito: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Le decimos a Supabase que intente hacer login
+                SupabaseHelper.client.auth.signInWith(Email) {
+                    email = correo
+                    password = contrasena
+                }
+
+                // Si la contraseña es correcta, entramos aquí
+                withContext(Dispatchers.Main) {
+                    onExito()
+                }
+            } catch (e: Exception) {
+                // Si la contraseña es incorrecta o el usuario no existe
+                withContext(Dispatchers.Main) {
+                    onError("Correo o contraseña incorrectos.") // Mensaje amigable
+                }
+            }
+        }
+    }
 
 }
