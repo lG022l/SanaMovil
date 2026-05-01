@@ -60,6 +60,7 @@ fun LoginScreen(
     val scrollState = rememberScrollState()
     val logoPainter = painterResource(id = R.drawable.logov3)
 
+
     LaunchedEffect(Unit) {
         onCheckModel(context)
     }
@@ -149,7 +150,7 @@ fun LoginScreen(
                 )
             },
             // BLOQUEO: Solo se activa si el modelo existe, no se está descargando, Y no estamos esperando a Supabase
-            enabled = isModelDownloaded && !isDownloading && !isLoading,
+            enabled = isModelDownloaded && !isDownloading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 disabledContainerColor = Color.Gray
@@ -174,19 +175,42 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- LÓGICA DE DESCARGA DE MODELO (Intacta) ---
         if (isDownloading) {
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = "Descargando modelo: ${(downloadProgress * 100).toInt()}%", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Descargando modelo: ${(downloadProgress * 100).toInt()}%",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(progress = { downloadProgress }, modifier = Modifier.fillMaxWidth().height(8.dp), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.surfaceVariant)
+                LinearProgressIndicator(
+                    progress = { downloadProgress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             }
         } else if (!isModelDownloaded) {
-            Button(onClick = { onDownloadModel(context) }, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = Color.White), modifier = Modifier.fillMaxWidth().height(50.dp), shape = MaterialTheme.shapes.medium) {
+            Button(
+                onClick = { onDownloadModel(context) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error, // Botón de alerta/rojo
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = MaterialTheme.shapes.medium
+            ) {
                 Text("Descargar Modelo IA Médico")
             }
         } else {
-            Text(text = "✓ Modelo IA instalado y listo", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+            Text(
+                text = "✓ Modelo IA instalado y listo",
+                color = Color(0xFF4CAF50), // Verde
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

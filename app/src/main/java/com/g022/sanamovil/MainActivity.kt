@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import com.g022.sanamovil.Auth.LoginScreen
@@ -28,6 +26,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.activity.viewModels
 import androidx.lifecycle.ViewModelProvider
 import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 // --- ACTIVITY PRINCIPAL ---
@@ -93,12 +93,17 @@ class MainActivity : ComponentActivity() {
                             },
                             onRegisterClick = { navController.navigate("registro_screen") },
                             onForgotPasswordClick = { /* Pendiente */ },
-                            // Pasamos los parámetros de descarga de modelo (OJO: Asegúrate de tener estas variables en tu ViewModel o Activity)
-                            isModelDownloaded = sharedViewModel.isLlamaLoaded, // Ajusta si lo manejas distinto
-                            isDownloading = false, // Ajusta según tu lógica de descarga
-                            downloadProgress = 0f, // Ajusta según tu lógica de descarga
-                            onCheckModel = { /* Tu lógica de check */ },
-                            onDownloadModel = { /* Tu lógica de descarga */ }
+                            isModelDownloaded = sanaViewModel.uiState.isModelDownloaded,
+                            isDownloading = sanaViewModel.uiState.isDownloading,
+                            downloadProgress = sanaViewModel.uiState.downloadProgress,
+
+                            // Conectamos las funciones enviando el nombre del modelo
+                            onCheckModel = { context ->
+                                sanaViewModel.checkModelExists(context, llamaModelName)
+                            },
+                            onDownloadModel = { context ->
+                                sanaViewModel.downloadModel(context, modelDownloadUrl, llamaModelName)
+                            }
                         )
                     }
 

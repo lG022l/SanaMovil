@@ -108,6 +108,9 @@ dependencies {
     implementation("io.ktor:ktor-client-core:2.3.10")
     implementation("io.ktor:ktor-utils:2.3.10")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+
 }
 
 ksp {
