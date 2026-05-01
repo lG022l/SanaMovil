@@ -68,9 +68,8 @@ class MainActivity : ComponentActivity() {
                 // 1. Iniciamos el controlador de navegación
                 val navController = rememberNavController()
 
-                val llamaModelName = "Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf"
-                val modelDownloadUrl = "https://huggingface.co/RichardErkhov/Na0s_-_Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT-gguf/resolve/main/Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf?download=true"
-
+                val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
+                val modelDownloadUrl = "https://huggingface.co/unsloth/medgemma-1.5-4b-it-GGUF/resolve/main/medgemma-1.5-4b-it-Q4_K_M.gguf?download=true"
                 // 2. Configuramos las rutas
                 NavHost(
                     navController = navController,
@@ -156,7 +155,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // 2. Cargar Llama (MedGemma)
-        val llamaModelName = "Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf"
+        val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
         val llamaPath = getModelPath(llamaModelName)
 
         if (File(llamaPath).exists()) {
@@ -305,29 +304,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildPrompt(textoUsuario: String): String {
-        return """
-        <start_of_turn>user
-        Como médico de triaje prehospitalario, evalúa basándote SOLO en los datos provistos. Prioriza la estabilización. Se lo más conciso posible.  Responde ESTRICTAMENTE con esta estructura exacta:
-
-        NIVEL: [LEVE / MODERADO / EMERGENCIA]
-        POSIBLE DIAGNOSTICO:
-        [Diagnóstico principal]
-
-        EVALUACIÓN:
-        - [Análisis clínico breve]
-
-        PLAN RECOMENDADO:
-        1. [Pasos urgentes, máximo 5]
-
-        🔴 SEÑALES DE ALARMA A VIGILAR:
-        - [Signos de empeoramiento]
-
-        ⚠️ ADVERTENCIA: [Riesgo principal]
-
-        Paciente: "$textoUsuario"<end_of_turn>
-        <start_of_turn>model
-        
-    """.trimIndent()
+        return "<start_of_turn>user\n" +
+                "Actúa como un médico de triaje prehospitalario de emergencias. " +
+                "REGLA ESTRICTA: No saludes, no des introducciones, no agregues advertencias de IA. " +
+                "Genera tu respuesta ÚNICAMENTE usando la siguiente estructura exacta:\n\n" +
+                "NIVEL: [LEVE / MODERADO / EMERGENCIA / SEVERO]\n" +
+                "POSIBLE DIAGNOSTICO:\n" +
+                "[Diagnóstico clínico principal]\n\n" +
+                "EVALUACIÓN:\n" +
+                "- [Análisis clínico conciso de los síntomas]\n\n" +
+                "PLAN RECOMENDADO:\n" +
+                "1. [Paso urgente 1]\n" +
+                "2. [Paso urgente 2]\n\n" +
+                "🔴 SEÑALES DE ALARMA A VIGILAR:\n" +
+                "- [Signos de empeoramiento crítico]\n\n" +
+                "⚠️ ADVERTENCIA: [Riesgo vital principal]\n\n" +
+                "Paciente reporta: \"$textoUsuario\"<end_of_turn>\n" +
+                "<start_of_turn>model\n"
     }
 }
 //Fin del documento, saludos
