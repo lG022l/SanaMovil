@@ -23,7 +23,7 @@ void batch_add(struct llama_batch & batch, llama_token id, llama_pos pos, const 
 
 extern "C" {
 
-// 1. Carga del Modelo (Actualizado para la API v3)
+// 1. Carga del Modelo
 JNIEXPORT jboolean JNICALL
 Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstring modelPathStr) {
     const char *model_path = env->GetStringUTFChars(modelPathStr, nullptr);
@@ -31,7 +31,7 @@ Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstrin
 
     if (g_llama_ctx != nullptr) {
         llama_free(g_llama_ctx);
-        llama_model_free(g_llama_model); // Nombre actualizado
+        llama_model_free(g_llama_model);
         g_llama_ctx = nullptr;
         g_llama_model = nullptr;
     }
@@ -40,7 +40,7 @@ Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstrin
 
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = 99;
-    g_llama_model = llama_model_load_from_file(model_path, model_params); // Nombre actualizado
+    g_llama_model = llama_model_load_from_file(model_path, model_params);
 
     if (g_llama_model == nullptr) {
         __android_log_print(ANDROID_LOG_ERROR, TAG, "Falló al cargar Llama.");
@@ -56,7 +56,7 @@ Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstrin
     return g_llama_ctx != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
-// 2. Generación REAL de Texto (Actualizado para usar llama_vocab)
+// 2. Generación REAL de Texto
 JNIEXPORT jstring JNICALL
 Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jstring promptStr) {
     if (g_llama_ctx == nullptr) return env->NewStringUTF("Error: IA no cargada.");
@@ -64,7 +64,6 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     const char *prompt = env->GetStringUTFChars(promptStr, nullptr);
     __android_log_print(ANDROID_LOG_INFO, TAG, "Iniciando inferencia real...");
 
-    // En la nueva API, el vocabulario se extrae del modelo
     const struct llama_vocab * vocab = llama_model_get_vocab(g_llama_model);
 
     // PASO A: Convertir el texto a tokens
@@ -77,12 +76,11 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     tokens_list.resize(n_tokens);
 
     // PASO B: Preparar el Batch
-    if (n_tokens >= 1024) {  // Ajustado al nuevo n_ctx
+    if (n_tokens >= 1024) {
         env->ReleaseStringUTFChars(promptStr, prompt);
         return env->NewStringUTF("Error: El historial clínico es demasiado largo para ser procesado.");
     }
 
-    // Batch size reducido para mejor rendimiento
     llama_batch batch = llama_batch_init(512, 0, 1);
     for (int i = 0; i < n_tokens; i++) {
         batch_add(batch, tokens_list[i], i, { 0 }, false);
@@ -96,28 +94,38 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
         return env->NewStringUTF("Error: Falló llama_decode");
     }
 
-    // PASO D: Bucle de generación
+    // PASO D: Bucle de generación y configuración del SAMPLER
     int n_cur = batch.n_tokens;
     int n_decode = 0;
-    const int max_tokens = 300;  // Reducido de 600 -> respuestas más concisas y rápidas
+    const int max_tokens = 300;
     std::string result_text = "";
 
-    while (n_decode < max_tokens) {
-        auto * logits = llama_get_logits_ith(g_llama_ctx, batch.n_tokens - 1);
-        int n_vocab = llama_vocab_n_tokens(vocab); // Nombre actualizado
+    // INICIALIZAR LA CADENA DE MUESTREO (SAMPLER CHAIN)
+    struct llama_sampler * smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
 
-        // Muestreo Greedy
-        llama_token new_token_id = 0;
-        float max_logit = -1e9;
-        for (int i = 0; i < n_vocab; i++) {
-            if (logits[i] > max_logit) {
-                max_logit = logits[i];
-                new_token_id = i;
-            }
-        }
+    // 1. Penalización de repetición (Evita los loops y el parroting)
+    llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+            llama_vocab_n_tokens(vocab),
+            256,   // Evalúa los últimos 256 tokens
+            1.18f, // Penalización de repetición (1.18 es ideal para Llama 3)
+            0.0f
+            ));
+
+    // 2. Temperatura (0.3 para triaje médico: preciso pero no monótono)
+    llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.3f));
+
+    // 3. Top-P
+    llama_sampler_chain_add(smpl, llama_sampler_init_top_p(0.9f, 1));
+
+    while (n_decode < max_tokens) {
+        // Generar el nuevo token usando el sampler en lugar de Greedy
+        llama_token new_token_id = llama_sampler_sample(smpl, g_llama_ctx, batch.n_tokens - 1);
+
+        // El sampler debe aceptar el token para penalizarlo en futuras iteraciones
+        llama_sampler_accept(smpl, new_token_id);
 
         // Token de finalización
-        if (new_token_id == llama_vocab_eos(vocab)) { // Nombre actualizado
+        if (new_token_id == llama_vocab_eos(vocab)) {
             break;
         }
 
@@ -128,12 +136,12 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
             std::string piece(buf, n);
             result_text += piece;
 
-            if (result_text.find("<end_of_turn>") != std::string::npos) {
+            if (result_text.find("<end_of_turn>") != std::string::npos ||
+                result_text.find("<|eot_id|>") != std::string::npos) {
                 break;
             }
         }
 
-        // Limpiar el batch (llama_batch_clear ya no se usa, simplemente ponemos n_tokens a 0)
         batch.n_tokens = 0;
         batch_add(batch, new_token_id, n_cur, { 0 }, true);
 
@@ -145,10 +153,17 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
         n_decode++;
     }
 
+    // Liberar memoria del sampler y el batch
+    llama_sampler_free(smpl);
     llama_batch_free(batch);
     env->ReleaseStringUTFChars(promptStr, prompt);
 
+    // Limpieza de tokens de cierre si se filtraron al texto
     size_t pos = result_text.find("<end_of_turn>");
+    if (pos != std::string::npos) {
+        result_text = result_text.substr(0, pos);
+    }
+    pos = result_text.find("<|eot_id|>");
     if (pos != std::string::npos) {
         result_text = result_text.substr(0, pos);
     }
@@ -156,13 +171,13 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     return env->NewStringUTF(result_text.c_str());
 }
 
+// 3. Generación en Streaming (Callback a Kotlin)
 JNIEXPORT void JNICALL
 Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobject thiz, jstring promptStr, jobject callback) {
     if (g_llama_ctx == nullptr) return;
 
     const char *prompt = env->GetStringUTFChars(promptStr, nullptr);
 
-    // Obtener la referencia al método onToken de Kotlin
     jclass callbackClass = env->GetObjectClass(callback);
     jmethodID onTokenMethod = env->GetMethodID(callbackClass, "onToken", "(Ljava/lang/String;)V");
 
@@ -197,18 +212,24 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobjec
     int n_decode = 0;
     const int max_tokens = 300;
 
-    while (n_decode < max_tokens) {
-        auto * logits = llama_get_logits_ith(g_llama_ctx, batch.n_tokens - 1);
-        int n_vocab = llama_vocab_n_tokens(vocab);
+    // INICIALIZAR LA CADENA DE MUESTREO PARA STREAMING
+    struct llama_sampler * smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+            256,   // penalty_last_n: Evalúa los últimos 256 tokens
+            1.18f, // penalty_repeat: El factor de penalización (1.18 es ideal)
+            0.0f,  // penalty_freq: Penalización por frecuencia (apagado)
+            0.0f   // penalty_present: Penalización por presencia (apagado)
+    ));
+    llama_sampler_chain_add(smpl, llama_sampler_init_temp(0.3f));
+    llama_sampler_chain_add(smpl, llama_sampler_init_top_p(0.9f, 1));
 
-        llama_token new_token_id = 0;
-        float max_logit = -1e9;
-        for (int i = 0; i < n_vocab; i++) {
-            if (logits[i] > max_logit) {
-                max_logit = logits[i];
-                new_token_id = i;
-            }
-        }
+    llama_sampler_chain_add(smpl, llama_sampler_init_dist(1234));
+
+    while (n_decode < max_tokens) {
+
+        // Generar el nuevo token usando el sampler
+        llama_token new_token_id = llama_sampler_sample(smpl, g_llama_ctx, batch.n_tokens - 1);
+        llama_sampler_accept(smpl, new_token_id);
 
         if (new_token_id == llama_vocab_eos(vocab)) {
             break;
@@ -219,16 +240,16 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobjec
         if (n >= 0) {
             std::string piece(buf, n);
 
-            // Si detecta el fin de turno, detenemos la generación
-            if (piece.find("<end_of_turn>") != std::string::npos) {
+            // Detener generación al detectar fin de turno
+            if (piece.find("<end_of_turn>") != std::string::npos ||
+                piece.find("<|eot_id|>") != std::string::npos) {
                 break;
             }
 
-            // === AQUÍ SUCEDE LA MAGIA DEL STREAMING ===
-            // Enviamos el fragmento (token) a Kotlin inmediatamente
+            // Enviar fragmento a Kotlin
             jstring jPiece = env->NewStringUTF(piece.c_str());
             env->CallVoidMethod(callback, onTokenMethod, jPiece);
-            env->DeleteLocalRef(jPiece); // Liberar memoria para evitar fugas
+            env->DeleteLocalRef(jPiece);
         }
 
         batch.n_tokens = 0;
@@ -242,6 +263,8 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobjec
         n_decode++;
     }
 
+    // Liberar memoria
+    llama_sampler_free(smpl);
     llama_batch_free(batch);
     env->ReleaseStringUTFChars(promptStr, prompt);
 }

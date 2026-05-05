@@ -67,6 +67,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     // Variable para guardar el texto original del usuario
     private var originalUserInput: String = ""
 
+    private var currentInferenceJob: kotlinx.coroutines.Job? = null
+
     fun updateInput(text: String) {
         uiState = uiState.copy(inputText = text)
     }
@@ -158,7 +160,9 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
         uiState = uiState.copy(showWizard = false)
 
-        viewModelScope.launch {
+
+
+        currentInferenceJob = viewModelScope.launch {
             setLoading(true, "Calculando nivel de riesgo...")
             withContext(Dispatchers.IO) {
 
@@ -659,6 +663,27 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+
+    // --- FASE 9: CONTROL DE ESTADO DE LA INTERFAZ ---
+
+    fun cancelProcessing() {
+        // Detiene la generación de la IA y cualquier cálculo en proceso
+        currentInferenceJob?.cancel()
+        setLoading(false, "Análisis cancelado.")
+    }
+
+    fun resetState() {
+        // Limpia los resultados y devuelve la vista a su estado inicial
+        uiState = uiState.copy(
+            triageResult = null,
+            analysisResult = "",
+            statusMessage = "",
+            showWizard = false,
+            inputText = "",
+            emergencyLevel = EmergencyLevel.NONE
+        )
     }
 
 

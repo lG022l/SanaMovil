@@ -100,6 +100,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import com.g022.sanamovil.UserRole
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.ButtonDefaults
 
 data class Paciente(
     val id: Int,
@@ -135,6 +138,8 @@ fun SanaAppScreen(
     val scope = rememberCoroutineScope()
     var showUserProfile by remember { mutableStateOf(false) }
 
+    var lastSubmittedText by remember { mutableStateOf("") }
+
     if (showUserProfile) {
         ProfileDialog(
             viewModel = viewModel, // 👇 LE PASAMOS EL VIEWMODEL AQUÍ
@@ -149,56 +154,27 @@ fun SanaAppScreen(
         viewModel.setLoading(false, "Sistema listo. ¿Cuál es la situación?")
     }
 
-    // --- INTERCEPTOR DE TEXTO HARDCODEADO ---
     val procesarEntrada = { texto: String ->
-        // Comprobamos si el texto contiene palabras clave del caso hardcodeado (para que funcione incluso si hay un espacio extra)
+
+        lastSubmittedText = texto // 1. Guardamos el texto para la tarjeta de resultados
+        viewModel.updateInput("") // 2. Borramos la caja de texto inmediatamente
+
         if (texto.contains("embarazo de 11.2 semanas", ignoreCase = true) ||
             texto.contains("cuarta década de vida", ignoreCase = true)) {
 
             scope.launch {
-                // 1. Limpiamos la caja de texto y mostramos estado de carga
-                viewModel.updateInput("")
+                // El botón de enviar se desactiva solo porque esto pone isLoading = true
                 viewModel.setLoading(true, "Analizando gravedad...")
-
-                // 2. Esperamos 7 segundos (7000 milisegundos)
                 delay(7000)
 
-                // 3. Mostramos la respuesta hardcodeada
-                val respuestaHardcodeada = """
-                    ⚠️ RIESGO MODERADO-ALTO — Amenaza de aborto con factores de riesgo
-
-                    EVALUACIÓN:
-                    - Sangrado vaginal de 6 días en primer trimestre con dolor abdominal
-                    - Trabajo físico intenso = factor de riesgo para aborto incompleto
-                    - Edad materna >35 = factor de riesgo adicional
-
-                    PLAN RECOMENDADO:
-                    1. Monitoreo cada 2-4 horas (signos vitales + cantidad de sangrado)
-                    2. Cuantificar sangrado: número de toallas sanitarias/hora
-                    3. Establecer acceso venoso periférico preventivo
-                    4. Preparar plan de traslado de emergencia AHORA
-                       - Identificar vehículo disponible
-                       - Contactar hospital receptor si hay señal
-                       - Tener líquidos IV listos para transporte
-
-                    🔴 SEÑALES DE ALARMA A VIGILAR:
-                    - Sangrado que empapa >1 toalla/hora
-                    - Taquicardia >100 lpm o PA sistólica <90 mmHg
-                    - Mareo, palidez, pérdida de consciencia
-                    - Fiebre >38°C
-
-                    ⚠️ ADVERTENCIA: Con sangrado de 6 días y dolor progresivo, 
-                    el riesgo de evolución a aborto incompleto con hemorragia es 
-                    SIGNIFICATIVO. No esperar a que sea emergencia para planear 
-                    traslado. Preparar logística de transporte inmediatamente.
-
-                    Confianza: 87%
-                """.trimIndent()
+                val respuestaHardcodeada = """ ... """.trimIndent()
 
                 viewModel.setLegacyResult(respuestaHardcodeada, EmergencyLevel.SEVERO)
+                viewModel.setLoading(false, "Análisis completado") // Volvemos a activar la UI
             }
         } else {
-            // ADAPTACIÓN FASE 8: Llamamos al nuevo flujo que activa el Wizard
+            // Asegúrate de que tu función processTriage dentro del ViewModel
+            // cambie isLoading a true al iniciar y a false al terminar.
             viewModel.processTriage(texto)
         }
     }
@@ -366,7 +342,8 @@ fun SanaAppScreen(
                     } else if (state.triageResult != null) {
                         // Vista 2: El resultado legal auditable de la Fase 9
                         Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                            TriageResultCard(uiState = state)
+                            // 👇 NUEVO: Le pasamos el texto congelado
+                            TriageResultCard(uiState = state, originalText = lastSubmittedText)
                         }
                     } else if (state.analysisResult.isNotEmpty()) {
                         // Vista 3: Legacy Fallback (para que no rompa código viejo)
@@ -424,6 +401,46 @@ fun SanaAppScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // --- NUEVO: BOTONES DE CANCELAR Y NUEVA CONSULTA ---
+                    AnimatedVisibility(
+                        visible = state.isLoading || state.triageResult != null || state.analysisResult.isNotEmpty() || state.showWizard
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (state.isLoading) {
+                                // Muestra "Cancelar" mientras el LLM está pensando
+                                OutlinedButton(
+                                    onClick = { viewModel.cancelProcessing() },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Cancelar")
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Cancelar análisis")
+                                }
+                            } else {
+                                // Muestra "Nueva Consulta" cuando ya acabó
+                                Button(
+                                    onClick = {
+                                        viewModel.resetState()
+                                        lastSubmittedText = "" // Limpiamos la variable que "congela" el texto
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Nueva consulta")
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Nueva consulta")
+                                }
                             }
                         }
                     }
@@ -877,7 +894,7 @@ fun VitalSignIndicator(
 
 // --- FASE 9: COMPONENTE DE RESULTADO AUDITABLE ---
 @Composable
-fun TriageResultCard(uiState: UiState) {
+fun TriageResultCard(uiState: UiState, originalText: String) { // 👇 Añadimos el parámetro
     val result = uiState.triageResult ?: return
 
     var showTraceability by remember { mutableStateOf(false) }
@@ -887,9 +904,29 @@ fun TriageResultCard(uiState: UiState) {
             .fillMaxWidth()
             .padding(0.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.1f)        ),
+            containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.1f)
+        ),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+
+            // --- MOSTRAR EL MENSAJE ORIGINAL ---
+            if (originalText.isNotBlank()) {
+                Text(
+                    text = "Tú describiste:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "\"$originalText\"",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                )
+                HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+            }
+            // --- FIN NUEVO ---
 
             Text(
                 text = "Nivel de Prioridad: ${result.urgencyLevel.title}",
@@ -928,7 +965,7 @@ fun TriageResultCard(uiState: UiState) {
                 )
             }
 
-            // NUEVO: Lógica de animación de carga mientras el LLM "piensa"
+            // Lógica de animación de carga mientras el LLM "piensa"
             if (result.llmExplanation.isEmpty()) {
                 Row(
                     modifier = Modifier

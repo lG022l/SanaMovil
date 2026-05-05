@@ -26,9 +26,6 @@ class ExplanationGenerator {
         "cirugía", "operación", "operar", "internar", "hospitalizar"
     )
 
-    /**
-     * ✅ VERSIÓN CORREGIDA: Ahora incluye el texto original del usuario y los síntomas asociados
-     */
     fun buildExplanationPrompt(
         originalUserText: String,
         symptoms: StructuredSymptoms,
@@ -40,18 +37,17 @@ class ExplanationGenerator {
             "Síntomas generales"
         }
 
-        // FORMATO NATIVO DE LLAMA 3.2
+        // PROMPT MEJORADO: Enfocado en síntesis y conclusión, prohibiendo el "parroting"
         return """
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
             
             Eres un asistente de orientación empático para una aplicación médica. Explica brevemente al paciente por qué el sistema le asignó este nivel de prioridad.
             
             INSTRUCCIONES:
-            1. HAZ REFERENCIA DIRECTA a lo que el paciente mencionó.
-            2. Explica de forma fluida y empática por qué recibió este nivel de prioridad.
-            3. NUNCA des diagnósticos médicos ni nombres de enfermedades.
-            4. NUNCA recetes medicamentos.
-            5. Sé cálido pero profesional.
+            1. Ve directo a la conclusión. NO repitas ni resumas los síntomas que el paciente ya te dio.
+            2. Explica con empatía por qué la gravedad de la situación requiere este nivel de prioridad.
+            3. Tu rol es estrictamente de apoyo y orientación. Limítate a sugerir la evaluación médica correspondiente.
+            4. Mantén la respuesta en 2 o 3 oraciones como máximo. Sé cálido y profesional.
             <|eot_id|><|start_header_id|>user<|end_header_id|>
             
             CONTEXTO DEL PACIENTE:
@@ -65,55 +61,53 @@ class ExplanationGenerator {
             - Dificultad para respirar: ${if(symptoms.hasBreathingDifficulty) "Sí" else "No"}
             ${if(symptoms.age != null) "- Edad: ${symptoms.age} años" else ""}
             <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            
+            
         """.trimIndent()
     }
 
-    /**
-     * Guardrail: Filtro de seguridad que audita la respuesta del LLM y limpia alucinaciones.
-     */
     fun validateAndFilterResponse(llmResponse: String): String {
         // 1. TIJERAS: Limpieza adaptada a tokens de Llama 3.2
         var cleanedResponse = llmResponse
-            .substringBefore("```")  // Corta bloques de código
-            .substringBefore("<|eot_id|>") // El verdadero token de fin de Llama 3
-            .substringBefore("<|start_header_id|>") // Por si intenta empezar otro turno
+            .substringBefore("```")
+            .substringBefore("<|eot_id|>")
+            .substringBefore("<|start_header_id|>")
             .substringBefore("Mensaje para el paciente:")
             .trim()
 
-        // 2. CORTAFUEGOS ANTI-LOOPS: Detectar si una frase se repite
+        // 2. CORTAFUEGOS ANTI-LOOPS: Funciona como red de seguridad secundaria al repetition_penalty
         val words = cleanedResponse.split(Regex("\\s+"))
         if (words.size > 20) {
             val lastTenWords = words.takeLast(10).joinToString(" ")
             val previousTenWords = words.dropLast(10).takeLast(10).joinToString(" ")
 
-            // Si hay bucle, cortamos la cadena justo antes de la repetición
             if (lastTenWords == previousTenWords) {
-                cleanedResponse = cleanedResponse.substringBefore(lastTenWords).trim()
+                cleanedResponse = cleanedResponse.substringBeforeLast(lastTenWords).trim()
             }
         }
 
-        // 3. Eliminar secuencias infinitas de puntuación (ej. "......" o ",,,,")
+        // 3. Limpieza de artefactos de generación
         cleanedResponse = cleanedResponse.replace(Regex("([.`*~_\\-,])\\1{3,}"), ".")
-
-        // 4. Eliminar saltos de línea excesivos
         cleanedResponse = cleanedResponse.replace(Regex("\n{3,}"), "\n\n")
 
-        // 5. FILTRO DE SEGURIDAD MÁS ESTRICTO (Palabras prohibidas)
+        // 4. FILTRO DE SEGURIDAD (Activado): Audita la respuesta final del LLM
         val lowerCaseResponse = cleanedResponse.lowercase()
 
+
         /*
-        /////////
-        RESPUESTA HARDCODEADA (Descomentar cuando implementes forbiddenWords)
-        /////////
+
+        RESPUESTA HARDCODEADA, NO EN USO AUN
         for (word in forbiddenWords) {
             if (lowerCaseResponse.contains(word)) {
-                Log.w("SanaMovil_Guardrails", "¡Bypass detectado! Palabra prohibida: '$word'")
-                return "Basado en los síntomas que nos compartiste, el sistema ha clasificado tu situación con prioridad. Por normativas de seguridad y salud, te recomendamos buscar valoración médica presencial en el tiempo indicado. No podemos ofrecer diagnósticos automatizados por este medio."
+                Log.w("SanaMovil_Guardrails", "¡Bypass detectado! Palabra prohibida: '${word}'")
+                return "Basado en los síntomas que nos compartiste, el sistema ha clasificado tu situación con la prioridad indicada. Por normativas de seguridad y salud, te recomendamos buscar valoración médica presencial en el tiempo sugerido. No podemos ofrecer diagnósticos automatizados por este medio."
             }
         }
+
         */
 
-        // 6. RETORNO SEGURO
+
+        // 5. RETORNO SEGURO
         return if (cleanedResponse.isNotBlank()) {
             cleanedResponse
         } else {
