@@ -2,12 +2,15 @@
 #include <string>
 #include <vector>
 #include <android/log.h>
+#include <atomic>
 #include "llama.h"
 
 #define TAG "JNI_LLAMA"
 
 struct llama_model *g_llama_model = nullptr;
 struct llama_context *g_llama_ctx = nullptr;
+
+std::atomic<bool> g_cancel_generation(false);
 
 // Función auxiliar para agregar tokens al lote (batch) en la nueva versión de llama.cpp
 void batch_add(struct llama_batch & batch, llama_token id, llama_pos pos, const std::vector<llama_seq_id> & seq_ids, bool logits) {
@@ -22,6 +25,14 @@ void batch_add(struct llama_batch & batch, llama_token id, llama_pos pos, const 
 }
 
 extern "C" {
+
+// 0
+
+JNIEXPORT void JNICALL
+Java_com_g022_sanamovil_MainActivity_cancelLlamaGeneration(JNIEnv *env, jobject) {
+    g_cancel_generation = true;
+    __android_log_print(ANDROID_LOG_INFO, TAG, "Señal de cancelación recibida desde Kotlin");
+}
 
 // 1. Carga del Modelo
 JNIEXPORT jboolean JNICALL
@@ -60,6 +71,13 @@ Java_com_g022_sanamovil_MainActivity_loadLlamaModel(JNIEnv *env, jobject, jstrin
 JNIEXPORT jstring JNICALL
 Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jstring promptStr) {
     if (g_llama_ctx == nullptr) return env->NewStringUTF("Error: IA no cargada.");
+
+    g_cancel_generation = false;
+
+    llama_free(g_llama_ctx); // Destruye la memoria de la consulta anterior
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = 2048; // El mismo tamaño que definiste al cargar el modelo
+    g_llama_ctx = llama_init_from_model(g_llama_model, ctx_params); // Crea uno en blanco
 
     const char *prompt = env->GetStringUTFChars(promptStr, nullptr);
     __android_log_print(ANDROID_LOG_INFO, TAG, "Iniciando inferencia real...");
@@ -118,6 +136,11 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlama(JNIEnv *env, jobject, jst
     llama_sampler_chain_add(smpl, llama_sampler_init_top_p(0.9f, 1));
 
     while (n_decode < max_tokens) {
+
+        if (g_cancel_generation) {
+            __android_log_print(ANDROID_LOG_INFO, TAG, "Abortando bucle de generación de forma segura.");
+            break;
+        }
         // Generar el nuevo token usando el sampler en lugar de Greedy
         llama_token new_token_id = llama_sampler_sample(smpl, g_llama_ctx, batch.n_tokens - 1);
 
@@ -176,6 +199,13 @@ JNIEXPORT void JNICALL
 Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobject thiz, jstring promptStr, jobject callback) {
     if (g_llama_ctx == nullptr) return;
 
+    g_cancel_generation = false;
+
+    llama_free(g_llama_ctx); // Destruye la memoria de la consulta anterior
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = 2048; // El mismo tamaño que definiste al cargar el modelo
+    g_llama_ctx = llama_init_from_model(g_llama_model, ctx_params); // Crea uno en blanco
+
     const char *prompt = env->GetStringUTFChars(promptStr, nullptr);
 
     jclass callbackClass = env->GetObjectClass(callback);
@@ -226,6 +256,11 @@ Java_com_g022_sanamovil_MainActivity_generateTextLlamaStream(JNIEnv *env, jobjec
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(1234));
 
     while (n_decode < max_tokens) {
+
+        if (g_cancel_generation) {
+            __android_log_print(ANDROID_LOG_INFO, TAG, "Abortando bucle de generación de forma segura.");
+            break;
+        }
 
         // Generar el nuevo token usando el sampler
         llama_token new_token_id = llama_sampler_sample(smpl, g_llama_ctx, batch.n_tokens - 1);

@@ -342,8 +342,18 @@ fun SanaAppScreen(
                     } else if (state.triageResult != null) {
                         // Vista 2: El resultado legal auditable de la Fase 9
                         Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                            // 👇 NUEVO: Le pasamos el texto congelado
-                            TriageResultCard(uiState = state, originalText = lastSubmittedText)
+                            TriageResultCard(
+                                uiState = state,
+                                originalText = lastSubmittedText,
+                                // 👇 AQUÍ LE PASAMOS QUÉ DEBE HACER CADA BOTÓN 👇
+                                onReset = {
+                                    viewModel.resetState()
+                                    lastSubmittedText = ""
+                                },
+                                onCancel = {
+                                    viewModel.cancelProcessing()
+                                }
+                            )
                         }
                     } else if (state.analysisResult.isNotEmpty()) {
                         // Vista 3: Legacy Fallback (para que no rompa código viejo)
@@ -405,45 +415,7 @@ fun SanaAppScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // --- NUEVO: BOTONES DE CANCELAR Y NUEVA CONSULTA ---
-                    AnimatedVisibility(
-                        visible = state.isLoading || state.triageResult != null || state.analysisResult.isNotEmpty() || state.showWizard
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp),
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            if (state.isLoading) {
-                                // Muestra "Cancelar" mientras el LLM está pensando
-                                OutlinedButton(
-                                    onClick = { viewModel.cancelProcessing() },
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.error
-                                    )
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Cancelar")
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Cancelar análisis")
-                                }
-                            } else {
-                                // Muestra "Nueva Consulta" cuando ya acabó
-                                Button(
-                                    onClick = {
-                                        viewModel.resetState()
-                                        lastSubmittedText = "" // Limpiamos la variable que "congela" el texto
-                                    }
-                                ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Nueva consulta")
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Nueva consulta")
-                                }
-                            }
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -893,8 +865,14 @@ fun VitalSignIndicator(
 }
 
 // --- FASE 9: COMPONENTE DE RESULTADO AUDITABLE ---
+// --- FASE 9: COMPONENTE DE RESULTADO AUDITABLE ---
 @Composable
-fun TriageResultCard(uiState: UiState, originalText: String) { // 👇 Añadimos el parámetro
+fun TriageResultCard(
+    uiState: UiState,
+    originalText: String,
+    onReset: () -> Unit,      // 👇 NUEVO PARÁMETRO
+    onCancel: () -> Unit      // 👇 NUEVO PARÁMETRO
+) {
     val result = uiState.triageResult ?: return
 
     var showTraceability by remember { mutableStateOf(false) }
@@ -926,7 +904,7 @@ fun TriageResultCard(uiState: UiState, originalText: String) { // 👇 Añadimos
                 )
                 HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
             }
-            // --- FIN NUEVO ---
+            // --- FIN MENSAJE ORIGINAL ---
 
             Text(
                 text = "Nivel de Prioridad: ${result.urgencyLevel.title}",
@@ -1020,7 +998,39 @@ fun TriageResultCard(uiState: UiState, originalText: String) { // 👇 Añadimos
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- 👇 NUEVO: BOTONES INTEGRADOS DENTRO DE LA TARJETA 👇 ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (uiState.isLoading) {
+                    OutlinedButton(
+                        onClick = onCancel, // Llamamos a la función que nos pasan por parámetro
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancelar")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Cancelar análisis")
+                    }
+                } else {
+                    Button(
+                        onClick = onReset // Llamamos a la función que nos pasan por parámetro
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Nueva consulta")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Nueva consulta")
+                    }
+                }
+            }
+            // --- 👆 FIN BOTONES INTEGRADOS 👆 ---
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
             Text(
                 text = result.disclaimer,

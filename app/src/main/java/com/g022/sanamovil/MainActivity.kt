@@ -44,6 +44,8 @@ class MainActivity : ComponentActivity() {
     // Función nativa para el streaming (Paso 2 y 3)
     external fun generateTextLlamaStream(prompt: String, callback: com.g022.sanamovil.engine.LlamaStreamCallback)
 
+    external fun cancelLlamaGeneration()
+
     companion object {
         init {
             System.loadLibrary("sanamovil")
@@ -173,10 +175,18 @@ class MainActivity : ComponentActivity() {
                     })
                 }
 
+                viewModel.cancelNativeLlama = {
+                    cancelLlamaGeneration()
+                }
+
                 // Mantenemos también la función clásica por si `procesarTexto` (legacy) la sigue usando
                 viewModel.generateLlamaResponse = { prompt ->
                     generateTextLlama(prompt)
                 }
+                viewModel.cancelNativeLlama = {
+                    cancelLlamaGeneration()
+                }
+
 
             } else {
                 Log.e("SANA", "Falló la carga de Llama en C++")

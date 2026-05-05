@@ -43,6 +43,8 @@ import kotlinx.coroutines.launch
 // para poder acceder a la base de datos sin problemas de Contexto.
 class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
+
+
     var uiState by mutableStateOf(UiState())
         private set
 
@@ -58,6 +60,11 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
     // Historial ficticio para el menú lateral
     var recentQueries = mutableStateListOf<String>()
+
+    // 👇 NUEVA VARIABLE 👇
+    var cancelNativeLlama: (() -> Unit)? = null
+
+
 
     // INSTANCIAS DEL NUEVO MOTOR DE DECISIÓN CLÍNICA
     private val symptomExtractor = SymptomExtractor()
@@ -81,9 +88,9 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         uiState = uiState.copy(
             triageResult = resultObj,
             analysisResult = resultObj.llmExplanation,
-            emergencyLevel = level,
-            isLoading = false,
-            statusMessage = ""
+            emergencyLevel = level
+            // isLoading = false,  <-- ELIMINA O COMENTA ESTA LÍNEA
+            // statusMessage = ""  <-- ELIMINA O COMENTA ESTA LÍNEA
         )
 
         val preview = "${resultObj.actionType.label} - ${resultObj.urgencyLevel.title}"
@@ -194,11 +201,16 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
                 withContext(Dispatchers.Main) {
                     setResult(currentTriageResult, emergencyLevelUi)
+                    // Aseguramos que el botón de "Cancelar" siga visible mientras escribe
+                    setLoading(true, "Redactando análisis...")
                 }
 
                 var accumulatedExplanation = ""
 
                 generateLlamaStream?.invoke(explanationPrompt) { token ->
+                    // 👇 EL ANTÍDOTO: Si el usuario ya canceló o reseteó, ignoramos las palabras de C++
+                    if (currentInferenceJob?.isActive != true) return@invoke
+
                     accumulatedExplanation += token
                     val safeExplanation = explanationGenerator.validateAndFilterResponse(accumulatedExplanation)
 
@@ -208,6 +220,13 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                             triageResult = currentTriageResult,
                             analysisResult = safeExplanation
                         )
+                    }
+                }
+
+                // 👇 AHORA SÍ: Apagamos el botón "Cancelar" solo cuando el modelo terminó de hablar
+                if (currentInferenceJob?.isActive == true) {
+                    withContext(Dispatchers.Main) {
+                        setLoading(false, "Análisis completado")
                     }
                 }
 
@@ -669,20 +688,26 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     // --- FASE 9: CONTROL DE ESTADO DE LA INTERFAZ ---
 
     fun cancelProcessing() {
-        // Detiene la generación de la IA y cualquier cálculo en proceso
+        // 👇 1. Detenemos C++ inmediatamente (evita el SIGSEGV)
+        cancelNativeLlama?.invoke()
+
+        // 2. Detenemos la corrutina en Kotlin
         currentInferenceJob?.cancel()
+
         setLoading(false, "Análisis cancelado.")
     }
 
     fun resetState() {
-        // Limpia los resultados y devuelve la vista a su estado inicial
+        cancelProcessing() // Cancela cualquier generación en curso
+
         uiState = uiState.copy(
             triageResult = null,
             analysisResult = "",
             statusMessage = "",
             showWizard = false,
             inputText = "",
-            emergencyLevel = EmergencyLevel.NONE
+            emergencyLevel = EmergencyLevel.NONE,
+            isLoading = false // 👇 AÑADE ESTO: Fuerza el apagado de la carga
         )
     }
 
