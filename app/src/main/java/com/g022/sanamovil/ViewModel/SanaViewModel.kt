@@ -112,6 +112,11 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateWizardAge(age: String) { uiState = uiState.copy(wizardAge = age) }
     fun updateWizardDuration(duration: String) { uiState = uiState.copy(wizardDuration = duration) }
+
+    fun updateWizardChronicConditions(conditions: String) {
+        uiState = uiState.copy(wizardChronicConditions = conditions)
+    }
+
     fun updateWizardIntensity(intensity: Float) {
         uiState = uiState.copy(wizardIntensity = intensity)
         if (intensity > 7f) {

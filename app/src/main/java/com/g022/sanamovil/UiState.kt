@@ -27,6 +27,8 @@ data class UiState(
     val wizardDuration: String = "Minutos", // Opciones: Minutos, Horas, Días
     val wizardIntensity: Float = 5f, // Slider de 1 a 10
 
+    val wizardChronicConditions: String = "",
+
     // Campos condicionales dinámicos
     val askAboutConsciousness: Boolean = false,
     val hasLossOfConsciousness: Boolean = false,

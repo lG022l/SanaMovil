@@ -2,6 +2,7 @@ package com.g022.sanamovil.Home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -19,9 +20,7 @@ fun TriageWizard(
     uiState: UiState,
     onAgeChange: (String) -> Unit,
     onDurationChange: (String) -> Unit,
-    onIntensityChange: (Float) -> Unit,
-    onConsciousnessChange: (Boolean) -> Unit,
-    onRadiationChange: (Boolean) -> Unit,
+    onChronicConditionsChange: (String) -> Unit,
     onConsentChange: (Boolean) -> Unit,
     onSubmit: () -> Unit
 ) {
@@ -71,43 +70,20 @@ fun TriageWizard(
                 }
             }
 
-            // 3. Intensidad (Slider)
-            Text("Nivel de malestar: ${uiState.wizardIntensity.toInt()}/10", fontWeight = FontWeight.SemiBold)
-            Slider(
-                value = uiState.wizardIntensity,
-                onValueChange = onIntensityChange,
-                valueRange = 1f..10f,
-                steps = 8 // Crea los "saltitos" entre el 1 y el 10
+            // 3. Enfermedades crónicas o antecedentes (NUEVO)
+            Text("Historial médico previo", fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = uiState.wizardChronicConditions,
+                onValueChange = onChronicConditionsChange,
+                placeholder = { Text("Ej: Diabetes, hipertensión, asma, marcapasos o 'ninguna'") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 100.dp), // Lo hace un poco más alto para invitar a escribir
+                maxLines = 4,
+                shape = RoundedCornerShape(12.dp)
             )
 
-            // 4. Preguntas Condicionales (Aparecen con animación)
-            AnimatedVisibility(visible = uiState.askAboutConsciousness) {
-                Column {
-                    Text("¿Ha habido pérdida de consciencia o desmayo?", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(
-                            checked = uiState.hasLossOfConsciousness,
-                            onCheckedChange = onConsciousnessChange
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (uiState.hasLossOfConsciousness) "Sí" else "No", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
 
-            AnimatedVisibility(visible = uiState.askAboutRadiation) {
-                Column {
-                    Text("¿El dolor se irradia hacia el brazo, cuello o espalda?", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Switch(
-                            checked = uiState.hasRadiatingPain,
-                            onCheckedChange = onRadiationChange
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (uiState.hasRadiatingPain) "Sí" else "No", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(16.dp))
 

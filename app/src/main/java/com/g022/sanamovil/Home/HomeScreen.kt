@@ -332,9 +332,8 @@ fun SanaAppScreen(
                                 uiState = state,
                                 onAgeChange = { viewModel.updateWizardAge(it) },
                                 onDurationChange = { viewModel.updateWizardDuration(it) },
-                                onIntensityChange = { viewModel.updateWizardIntensity(it) },
-                                onConsciousnessChange = { viewModel.updateConsciousness(it) },
-                                onRadiationChange = { viewModel.updateRadiation(it) },
+                                // 👇 NUEVA CONEXIÓN
+                                onChronicConditionsChange = { viewModel.updateWizardChronicConditions(it) },
                                 onConsentChange = { viewModel.updateWizardConsent(it) },
                                 onSubmit = { viewModel.submitWizardAndCalculate() }
                             )
