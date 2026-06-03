@@ -68,6 +68,8 @@ data class UiState(
     val configNivelRecursos: String = "Básico",
     val configContactoEmergencia: String = "",
 
+    val historialMensajes: List<MensajeChat> = emptyList(),
+
 )
 data class OperadorStats(
     val nombre: String,
@@ -92,3 +94,7 @@ enum class EmergencyLevel(val color: Color, val label: String) {
     SEVERO(Color(0xFFF44336), "SEVERO"), // Rojo
     EMERGENCIA(Color(0xFFFF0000), "EMERGENCIA 911") // Rojo Intenso
 }
+
+// Pon esto fuera de la data class UiState
+data class MensajeChat(val esUsuario: Boolean, val texto: String)
+

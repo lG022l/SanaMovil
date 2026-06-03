@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -324,7 +325,7 @@ fun SanaAppScreen(
                         }
                     }
 
-                    // --- LÓGICA DE VISTAS (FASE 8 y 9) ---
+                    // --- LÓGICA DE VISTAS (ACTUALIZADA PARA CHAT) ---
                     if (state.showWizard) {
                         // Vista 1: El cuestionario Wizard
                         Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -332,19 +333,17 @@ fun SanaAppScreen(
                                 uiState = state,
                                 onAgeChange = { viewModel.updateWizardAge(it) },
                                 onDurationChange = { viewModel.updateWizardDuration(it) },
-                                // 👇 NUEVA CONEXIÓN
                                 onChronicConditionsChange = { viewModel.updateWizardChronicConditions(it) },
                                 onConsentChange = { viewModel.updateWizardConsent(it) },
                                 onSubmit = { viewModel.submitWizardAndCalculate() }
                             )
                         }
                     } else if (state.triageResult != null) {
-                        // Vista 2: El resultado legal auditable de la Fase 9
+                        // Vista 2: El resultado legal (Aparece SOLO cuando Llama da el [DIAGNOSTICO_FINAL])
                         Box(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                             TriageResultCard(
                                 uiState = state,
                                 originalText = lastSubmittedText,
-                                // 👇 AQUÍ LE PASAMOS QUÉ DEBE HACER CADA BOTÓN 👇
                                 onReset = {
                                     viewModel.resetState()
                                     lastSubmittedText = ""
@@ -354,35 +353,13 @@ fun SanaAppScreen(
                                 }
                             )
                         }
-                    } else if (state.analysisResult.isNotEmpty()) {
-                        // Vista 3: Legacy Fallback (para que no rompa código viejo)
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            colors = CardDefaults.cardColors(
-                                containerColor = state.emergencyLevel.color.copy(alpha = 0.1f)
+                    } else if (state.historialMensajes.isNotEmpty() || state.analysisResult.isNotEmpty()) {
+                        // 👇 VISTA 3: EL NUEVO CHAT INTERACTIVO 👇
+                        Box(modifier = Modifier.weight(1f)) {
+                            VistaDeChat(
+                                mensajes = state.historialMensajes,
+                                textoEnVivo = state.analysisResult
                             )
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .padding(16.dp)
-                                    .verticalScroll(rememberScrollState())
-                            ) {
-                                if (state.emergencyLevel != EmergencyLevel.NONE) {
-                                    Text(
-                                        text = state.emergencyLevel.label,
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = state.emergencyLevel.color,
-                                        modifier = Modifier.padding(bottom = 12.dp)
-                                    )
-                                }
-                                Text(
-                                    text = state.analysisResult,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            }
                         }
                     } else {
                         // Vista 4: Pantalla de inicio vacía
@@ -1037,6 +1014,60 @@ fun TriageResultCard(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.error,
                 lineHeight = 14.sp
+            )
+        }
+    }
+
+}
+
+// --- FASE CHAT INTERACTIVO ---
+@Composable
+fun VistaDeChat(mensajes: List<com.g022.sanamovil.MensajeChat>, textoEnVivo: String) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(mensajes) { msg ->
+            BurbujaChat(mensaje = msg)
+        }
+
+        // Mostramos lo que Llama está escribiendo token por token
+        if (textoEnVivo.isNotEmpty() && textoEnVivo != "Pensando...") {
+            item {
+                BurbujaChat(mensaje = com.g022.sanamovil.MensajeChat(esUsuario = false, texto = textoEnVivo))
+            }
+        }
+    }
+}
+
+@Composable
+fun BurbujaChat(mensaje: com.g022.sanamovil.MensajeChat) {
+    // Colores: Verde para el usuario, Gris oscuro para Llama
+    val fondo = if (mensaje.esUsuario) Color(0xFF00796B) else MaterialTheme.colorScheme.surfaceVariant
+    val colorTexto = if (mensaje.esUsuario) Color.White else MaterialTheme.colorScheme.onSurface
+    val alineacion = if (mensaje.esUsuario) Alignment.CenterEnd else Alignment.CenterStart
+
+    // Forma de la burbuja (pico a la derecha o a la izquierda)
+    val forma = if (mensaje.esUsuario) {
+        RoundedCornerShape(16.dp, 16.dp, 0.dp, 16.dp)
+    } else {
+        RoundedCornerShape(16.dp, 16.dp, 16.dp, 0.dp)
+    }
+
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alineacion) {
+        Surface(
+            color = fondo,
+            shape = forma,
+            modifier = Modifier.widthIn(max = 300.dp),
+            tonalElevation = 2.dp
+        ) {
+            Text(
+                text = mensaje.texto,
+                color = colorTexto,
+                modifier = Modifier.padding(12.dp),
+                fontSize = 15.sp
             )
         }
     }

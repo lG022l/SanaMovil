@@ -30,6 +30,7 @@ import com.g022.sanamovil.UserRole
 import com.g022.sanamovil.OperadorStats
 import com.g022.sanamovil.AlertaSana
 import com.g022.sanamovil.AlertaNivel
+import com.g022.sanamovil.MensajeChat
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import com.g022.sanamovil.database.SupabaseHelper
@@ -63,6 +64,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
     // 👇 NUEVA VARIABLE 👇
     var cancelNativeLlama: (() -> Unit)? = null
+
+    private var turnosChat = 0
 
 
 
@@ -164,9 +167,22 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun continuarChat(respuestaUsuario: String) {
-        uiState = uiState.copy(inputText = "")
+        turnosChat++
 
-        chatHistorySession += "<|start_header_id|>user<|end_header_id|>\n\n$respuestaUsuario<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        // 1. Dibujamos TU burbuja verde en pantalla antes de mandarla a Llama
+        val listaActualizada = uiState.historialMensajes.toMutableList()
+        listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = true, texto = respuestaUsuario))
+
+        uiState = uiState.copy(
+            inputText = "",
+            analysisResult = "Pensando...",
+            historialMensajes = listaActualizada
+        )
+
+        // 2. Trampa de turno para forzar el diagnóstico rápido
+        val ordenOculta = if (turnosChat >= 1) "\n(Nota del sistema: Ya tienes información suficiente. Emite tu evaluación final empezando con [DIAGNOSTICO_FINAL] ahora mismo)." else ""
+
+        chatHistorySession += "<|start_header_id|>user<|end_header_id|>\n\n$respuestaUsuario $ordenOculta<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
         currentInferenceJob = viewModelScope.launch {
             setLoading(true, "Escribiendo...")
@@ -186,13 +202,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                         return@invoke
                     }
 
-                    // 👇 ACTUALIZAMOS EL TRIAGE RESULT DE LA UI
                     viewModelScope.launch(Dispatchers.Main) {
-                        val updatedResult = uiState.triageResult?.copy(llmExplanation = currentResponse)
-                        uiState = uiState.copy(
-                            analysisResult = currentResponse,
-                            triageResult = updatedResult
-                        )
+                        uiState = uiState.copy(analysisResult = currentResponse)
                     }
                 }
 
@@ -200,6 +211,14 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) {
                         setLoading(false, "Esperando tu respuesta...")
                         chatHistorySession += "$currentResponse<|eot_id|>\n"
+
+                        // Guardamos la respuesta del modelo como una burbuja estática
+                        val nuevaLista = uiState.historialMensajes.toMutableList()
+                        nuevaLista.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
+                        uiState = uiState.copy(
+                            analysisResult = "",
+                            historialMensajes = nuevaLista
+                        )
                     }
                 }
             }
@@ -212,18 +231,25 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
     // 👇 2. LA FUNCIÓN MODIFICADA (Inicia el Chat)
     fun submitWizardAndCalculate() {
-        uiState = uiState.copy(showWizard = false)
+        // 1. Limpiamos TODO rastro de resultados anteriores y preparamos el chat
+        uiState = uiState.copy(
+            showWizard = false,
+            triageResult = null, // 👈 Clave para que el chat se muestre
+            inputText = "",
+            analysisResult = "Pensando...",
+            historialMensajes = listOf(com.g022.sanamovil.MensajeChat(esUsuario = true, texto = originalUserInput))
+        )
 
         val enfermedades = if (uiState.wizardChronicConditions.isNotBlank()) uiState.wizardChronicConditions else "Ninguna registrada"
         val consentimientoAceptado = uiState.wizardConsentAccepted
 
+        turnosChat = 0 // Reiniciamos nuestro contador oculto
+
         val systemPrompt = """
-            Eres la IA de triaje clínico de la aplicación SanaMovil. Eres un sistema automatizado, NO un médico humano. NO inventes nombres, licencias, URLs ni credenciales.
-            Tu objetivo es hacer preguntas paso a paso para entender los síntomas del paciente.
+            Eres la IA de triaje clínico de SanaMovil.
             REGLAS ESTRICTAS:
-            1. Haz solo UNA pregunta corta y directa a la vez.
-            2. NO des un diagnóstico ni consejos en tus primeras respuestas. Tu trabajo es investigar.
-            3. Cuando tengas toda la información necesaria para un diagnóstico acertado, DEBES iniciar tu respuesta EXACTAMENTE con la etiqueta: [DIAGNOSTICO_FINAL], seguido de tu evaluación, prioridad y recomendaciones.
+            1. En tu PRIMERA respuesta, haz un ÚNICO bloque con 2 o 3 preguntas vitales para entender el caso.
+            2. En tu SEGUNDA respuesta (cuando el usuario te conteste), DEBES emitir el diagnóstico iniciando EXACTAMENTE con la etiqueta: [DIAGNOSTICO_FINAL], seguido de tu evaluación. No hagas más preguntas.
         """.trimIndent()
 
         val contextoPaciente = """
@@ -232,7 +258,7 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             Historial médico: $enfermedades.
             Síntomas iniciales: $originalUserInput
             
-            Por favor, hazme la primera pregunta para entender mi caso.
+            Por favor, hazme las preguntas para entender mi caso.
         """.trimIndent()
 
         chatHistorySession = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -242,26 +268,6 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         $contextoPaciente<|eot_id|><|start_header_id|>assistant<|end_header_id|>
         
         """.trimIndent()
-
-        // 👇 SOLUCIÓN: Creamos un resultado temporal usando tu motor para que la UI dibuje la caja de chat
-        val dummySymptoms = com.g022.sanamovil.engine.StructuredSymptoms(intensity = 1, age = 30, isConscious = true, radiatingPain = false)
-        val dummyEval = ruleEngine.evaluateSymptoms(dummySymptoms)
-        val dummyUrgency = ResponseLibrary.mapRiskToUrgency(dummyEval.riskLevel)
-
-        var chatTriageResult = TriageResult(
-            urgencyLevel = dummyUrgency,
-            timeframe = ResponseLibrary.getTimeframe(dummyUrgency),
-            actionType = ResponseLibrary.getActionType(dummyUrgency),
-            standardMessage = "Por favor, responde a las preguntas del asistente para continuar con el triaje.",
-            llmExplanation = "Pensando...",
-            triggeredRules = emptyList()
-        )
-
-        uiState = uiState.copy(
-            inputText = "",
-            analysisResult = "Pensando...",
-            triageResult = chatTriageResult // ¡Esto activa la vista en HomeScreen!
-        )
 
         currentInferenceJob = viewModelScope.launch {
             setLoading(true, "Escribiendo...")
@@ -281,13 +287,9 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                         return@invoke
                     }
 
-                    // 👇 ACTUALIZAMOS LA EXPLICACIÓN DEL TRIAGE RESULT EN CADA TOKEN
+                    // 👇 AQUÍ ESTABA EL BUG: Solo actualizamos analysisResult, NUNCA tocamos triageResult
                     viewModelScope.launch(Dispatchers.Main) {
-                        chatTriageResult = chatTriageResult.copy(llmExplanation = currentResponse)
-                        uiState = uiState.copy(
-                            analysisResult = currentResponse,
-                            triageResult = chatTriageResult
-                        )
+                        uiState = uiState.copy(analysisResult = currentResponse)
                     }
                 }
 
@@ -295,6 +297,14 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.Main) {
                         setLoading(false, "Esperando tu respuesta...")
                         chatHistorySession += "$currentResponse<|eot_id|>\n"
+
+                        // Guardamos el mensaje final de Llama como una burbuja estática
+                        val listaActualizada = uiState.historialMensajes.toMutableList()
+                        listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
+                        uiState = uiState.copy(
+                            analysisResult = "", // Limpiamos la variable en vivo
+                            historialMensajes = listaActualizada
+                        )
                     }
                 }
             }
