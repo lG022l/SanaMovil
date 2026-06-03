@@ -140,41 +140,41 @@ fun LoginScreen(
             onClick = {
                 focusManager.clearFocus()
 
+                // Validación básica local (opcional, la dejé para que no rompa flujos si requiere el dato)
                 if (email.isEmpty() || password.isEmpty()) {
-                    mensajeError = "Por favor ingresa tu correo y contraseña."
+                    mensajeError = "Ingresa cualquier dato, el backend está bypasseado."
                     return@Button
                 }
 
+                // BYPASS ACTIVO: Omitimos la llamada al ViewModel y simulamos éxito inmediato.
+                /*
                 isLoading = true
                 mensajeError = ""
 
                 viewModel.iniciarSesionEnNube(
                     correo = email,
                     contrasena = password,
-                    onExito = {
-                        isLoading = false
-
-                        // --- NUEVO: Guardar o limpiar preferencias según el Checkbox ---
-                        with(sharedPreferences.edit()) {
-                            if (rememberMe) {
-                                putString("email", email)
-                                putString("password", password)
-                                putBoolean("rememberMe", true)
-                            } else {
-                                clear() // Si desmarca, borramos los datos
-                            }
-                            apply()
-                        }
-
-                        onLoginSuccess()
-                    },
-                    onError = { error ->
-                        isLoading = false
-                        mensajeError = error
-                    }
+                    onExito = { ... },
+                    onError = { ... }
                 )
+                */
+
+                // 1. Guardar preferencias locales (mantenemos la lógica de UI intacta)
+                with(sharedPreferences.edit()) {
+                    if (rememberMe) {
+                        putString("email", email)
+                        putString("password", password)
+                        putBoolean("rememberMe", true)
+                    } else {
+                        clear()
+                    }
+                    apply()
+                }
+
+                // 2. Disparar el login exitoso directamente
+                onLoginSuccess()
             },
-            enabled = isModelDownloaded && !isDownloading,
+            enabled = isModelDownloaded && !isDownloading, // Mantenemos la regla del modelo local
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 disabledContainerColor = Color.Gray
@@ -186,7 +186,7 @@ fun LoginScreen(
             } else if (isLoading) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
             } else {
-                Text("Iniciar sesión")
+                Text("Iniciar sesión .")
             }
         }
 
