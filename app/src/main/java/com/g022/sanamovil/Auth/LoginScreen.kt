@@ -20,24 +20,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.g022.sanamovil.R
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
-import com.g022.sanamovil.ViewModel.SanaViewModel // <-- IMPORTANTE: Verifica esta ruta
+import com.g022.sanamovil.ViewModel.SanaViewModel
 
 @Composable
 fun LoginScreen(
-    viewModel: SanaViewModel, // <-- NUEVO: Recibimos el ViewModel para conectarnos a Supabase
-    onLoginSuccess: () -> Unit, // <-- NUEVO: Qué hacer si el login es exitoso
+    viewModel: SanaViewModel,
+    onLoginSuccess: () -> Unit,
     onRegisterClick: () -> Unit,
     onForgotPasswordClick: () -> Unit,
     isModelDownloaded: Boolean,
@@ -46,20 +46,23 @@ fun LoginScreen(
     onCheckModel: (Context) -> Unit,
     onDownloadModel: (Context) -> Unit
 ) {
-    var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var showPassword by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    // --- NUEVO: Instancia de SharedPreferences ---
+    val sharedPreferences = context.getSharedPreferences("SanaPrefs", Context.MODE_PRIVATE)
 
-    // --- NUEVOS ESTADOS PARA SUPABASE ---
+    // --- MODIFICADO: Leen los datos guardados por defecto ---
+    var email by rememberSaveable { mutableStateOf(sharedPreferences.getString("email", "") ?: "") }
+    var password by rememberSaveable { mutableStateOf(sharedPreferences.getString("password", "") ?: "") }
+    var rememberMe by rememberSaveable { mutableStateOf(sharedPreferences.getBoolean("rememberMe", false)) }
+
+    var showPassword by rememberSaveable { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var mensajeError by remember { mutableStateOf("") }
 
-    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val scrollState = rememberScrollState()
     val logoPainter = painterResource(id = R.drawable.logov3)
-
 
     LaunchedEffect(Unit) {
         onCheckModel(context)
@@ -87,7 +90,6 @@ fun LoginScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        // --- CAMPOS DE TEXTO (Iguales a los tuyos) ---
         OutlinedTextField(
             value = email, onValueChange = { email = it }, label = { Text("Correo electrónico", color = MaterialTheme.colorScheme.primary) },
             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
@@ -108,9 +110,22 @@ fun LoginScreen(
             textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground), visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done)
         )
-        Spacer(modifier = Modifier.height(16.dp))
 
-        // --- NUEVO: MOSTRAR ERRORES ---
+        // --- NUEVO: Checkbox de Recuérdame ---
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = rememberMe,
+                onCheckedChange = { rememberMe = it },
+                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+            )
+            Text("Recuérdame", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         if (mensajeError.isNotEmpty()) {
             Text(
                 text = mensajeError,
@@ -121,18 +136,15 @@ fun LoginScreen(
             )
         }
 
-        // --- BOTÓN INICIAR SESIÓN ACTUALIZADO ---
         Button(
             onClick = {
-                focusManager.clearFocus() // Ocultar teclado
+                focusManager.clearFocus()
 
-                // 1. Validar que no estén vacíos
                 if (email.isEmpty() || password.isEmpty()) {
                     mensajeError = "Por favor ingresa tu correo y contraseña."
                     return@Button
                 }
 
-                // 2. Intentar login con Supabase
                 isLoading = true
                 mensajeError = ""
 
@@ -141,15 +153,27 @@ fun LoginScreen(
                     contrasena = password,
                     onExito = {
                         isLoading = false
-                        onLoginSuccess() // Si es exitoso, navegamos al Dashboard
+
+                        // --- NUEVO: Guardar o limpiar preferencias según el Checkbox ---
+                        with(sharedPreferences.edit()) {
+                            if (rememberMe) {
+                                putString("email", email)
+                                putString("password", password)
+                                putBoolean("rememberMe", true)
+                            } else {
+                                clear() // Si desmarca, borramos los datos
+                            }
+                            apply()
+                        }
+
+                        onLoginSuccess()
                     },
                     onError = { error ->
                         isLoading = false
-                        mensajeError = error // Mostrar error
+                        mensajeError = error
                     }
                 )
             },
-            // BLOQUEO: Solo se activa si el modelo existe, no se está descargando, Y no estamos esperando a Supabase
             enabled = isModelDownloaded && !isDownloading,
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -169,12 +193,13 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = onRegisterClick) { Text("¿No tienes una cuenta?\nRegístrate aquí", color = MaterialTheme.colorScheme.primary) }
+            TextButton(onClick = onRegisterClick) { Text("¿No tienes una cuenta?\nRegístrate aquí", color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center) }
             TextButton(onClick = onForgotPasswordClick) { Text("¿Olvidaste tu contraseña?", color = MaterialTheme.colorScheme.primary) }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Bloque de descarga del modelo intacto...
         if (isDownloading) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -197,7 +222,7 @@ fun LoginScreen(
             Button(
                 onClick = { onDownloadModel(context) },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error, // Botón de alerta/rojo
+                    containerColor = MaterialTheme.colorScheme.error,
                     contentColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -208,7 +233,7 @@ fun LoginScreen(
         } else {
             Text(
                 text = "✓ Modelo IA instalado y listo",
-                color = Color(0xFF4CAF50), // Verde
+                color = Color(0xFF4CAF50),
                 fontWeight = FontWeight.Bold
             )
         }

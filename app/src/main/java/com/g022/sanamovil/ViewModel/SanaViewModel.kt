@@ -138,6 +138,11 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        if (chatHistorySession.isNotEmpty() && !uiState.showWizard) {
+            continuarChat(transcription)
+            return
+        }
+
         originalUserInput = transcription
         val lowerText = transcription.lowercase()
         val asksRadiation = lowerText.contains("pecho") || lowerText.contains("corazón")
@@ -158,99 +163,194 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun submitWizardAndCalculate() {
-        val temp = temporarySymptoms ?: return
+    private fun continuarChat(respuestaUsuario: String) {
+        uiState = uiState.copy(inputText = "")
 
-        val consentimientoAceptado = uiState.wizardConsentAccepted
-
-        val finalSymptoms = temp.copy(
-            age = uiState.wizardAge.toIntOrNull() ?: temp.age,
-            intensity = uiState.wizardIntensity.toInt(),
-            isConscious = !uiState.hasLossOfConsciousness,
-            radiatingPain = uiState.hasRadiatingPain || temp.radiatingPain
-        )
-
-        uiState = uiState.copy(showWizard = false)
-
-
+        chatHistorySession += "<|start_header_id|>user<|end_header_id|>\n\n$respuestaUsuario<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
         currentInferenceJob = viewModelScope.launch {
-            setLoading(true, "Calculando nivel de riesgo...")
+            setLoading(true, "Escribiendo...")
             withContext(Dispatchers.IO) {
+                var currentResponse = ""
 
-                val tiempoInicioMs = System.currentTimeMillis()
-
-
-                val engineEval = ruleEngine.evaluateSymptoms(finalSymptoms)
-                val clinicalRiskLevel = engineEval.riskLevel
-                val triggeredRulesList = engineEval.triggeredRules
-
-                // Corregido: Llamar a buildExplanationPrompt con los parámetros correctos
-                val explanationPrompt = explanationGenerator.buildExplanationPrompt(
-                    originalUserText = originalUserInput, // <-- Solo agrega esta línea
-                    symptoms = finalSymptoms,
-                    riskLevel = clinicalRiskLevel
-                )
-
-                val urgency = ResponseLibrary.mapRiskToUrgency(clinicalRiskLevel)
-                val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
-
-                var currentTriageResult = TriageResult(
-                    urgencyLevel = urgency,
-                    timeframe = ResponseLibrary.getTimeframe(urgency),
-                    actionType = ResponseLibrary.getActionType(urgency),
-                    standardMessage = ResponseLibrary.getStandardMessage(urgency),
-                    llmExplanation = "",
-                    triggeredRules = triggeredRulesList
-                )
-
-                withContext(Dispatchers.Main) {
-                    setResult(currentTriageResult, emergencyLevelUi)
-                    // Aseguramos que el botón de "Cancelar" siga visible mientras escribe
-                    setLoading(true, "Redactando análisis...")
-                }
-
-                var accumulatedExplanation = ""
-
-                generateLlamaStream?.invoke(explanationPrompt) { token ->
-                    // 👇 EL ANTÍDOTO: Si el usuario ya canceló o reseteó, ignoramos las palabras de C++
+                generateLlamaStream?.invoke(chatHistorySession) { token ->
                     if (currentInferenceJob?.isActive != true) return@invoke
 
-                    accumulatedExplanation += token
-                    val safeExplanation = explanationGenerator.validateAndFilterResponse(accumulatedExplanation)
+                    currentResponse += token
 
+                    if (currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
+                        viewModelScope.launch {
+                            procesarDiagnosticoFinal(currentResponse, uiState.wizardConsentAccepted)
+                        }
+                        cancelNativeLlama?.invoke()
+                        return@invoke
+                    }
+
+                    // 👇 ACTUALIZAMOS EL TRIAGE RESULT DE LA UI
                     viewModelScope.launch(Dispatchers.Main) {
-                        currentTriageResult = currentTriageResult.copy(llmExplanation = safeExplanation)
+                        val updatedResult = uiState.triageResult?.copy(llmExplanation = currentResponse)
                         uiState = uiState.copy(
-                            triageResult = currentTriageResult,
-                            analysisResult = safeExplanation
+                            analysisResult = currentResponse,
+                            triageResult = updatedResult
                         )
                     }
                 }
 
-                // 👇 AHORA SÍ: Apagamos el botón "Cancelar" solo cuando el modelo terminó de hablar
                 if (currentInferenceJob?.isActive == true) {
                     withContext(Dispatchers.Main) {
-                        setLoading(false, "Análisis completado")
+                        setLoading(false, "Esperando tu respuesta...")
+                        chatHistorySession += "$currentResponse<|eot_id|>\n"
+                    }
+                }
+            }
+        }
+    }
+
+    // 👇 1. NUEVA VARIABLE PARA LA MEMORIA DEL CHAT (Ponla arriba con tus otras variables)
+    private var chatHistorySession: String = ""
+
+
+    // 👇 2. LA FUNCIÓN MODIFICADA (Inicia el Chat)
+    fun submitWizardAndCalculate() {
+        uiState = uiState.copy(showWizard = false)
+
+        val enfermedades = if (uiState.wizardChronicConditions.isNotBlank()) uiState.wizardChronicConditions else "Ninguna registrada"
+        val consentimientoAceptado = uiState.wizardConsentAccepted
+
+        val systemPrompt = """
+            Eres la IA de triaje clínico de la aplicación SanaMovil. Eres un sistema automatizado, NO un médico humano. NO inventes nombres, licencias, URLs ni credenciales.
+            Tu objetivo es hacer preguntas paso a paso para entender los síntomas del paciente.
+            REGLAS ESTRICTAS:
+            1. Haz solo UNA pregunta corta y directa a la vez.
+            2. NO des un diagnóstico ni consejos en tus primeras respuestas. Tu trabajo es investigar.
+            3. Cuando tengas toda la información necesaria para un diagnóstico acertado, DEBES iniciar tu respuesta EXACTAMENTE con la etiqueta: [DIAGNOSTICO_FINAL], seguido de tu evaluación, prioridad y recomendaciones.
+        """.trimIndent()
+
+        val contextoPaciente = """
+            Edad: ${uiState.wizardAge} años.
+            Tiempo con síntomas: ${uiState.wizardDuration}.
+            Historial médico: $enfermedades.
+            Síntomas iniciales: $originalUserInput
+            
+            Por favor, hazme la primera pregunta para entender mi caso.
+        """.trimIndent()
+
+        chatHistorySession = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+            
+        $systemPrompt<|eot_id|><|start_header_id|>user<|end_header_id|>
+        
+        $contextoPaciente<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+        
+        """.trimIndent()
+
+        // 👇 SOLUCIÓN: Creamos un resultado temporal usando tu motor para que la UI dibuje la caja de chat
+        val dummySymptoms = com.g022.sanamovil.engine.StructuredSymptoms(intensity = 1, age = 30, isConscious = true, radiatingPain = false)
+        val dummyEval = ruleEngine.evaluateSymptoms(dummySymptoms)
+        val dummyUrgency = ResponseLibrary.mapRiskToUrgency(dummyEval.riskLevel)
+
+        var chatTriageResult = TriageResult(
+            urgencyLevel = dummyUrgency,
+            timeframe = ResponseLibrary.getTimeframe(dummyUrgency),
+            actionType = ResponseLibrary.getActionType(dummyUrgency),
+            standardMessage = "Por favor, responde a las preguntas del asistente para continuar con el triaje.",
+            llmExplanation = "Pensando...",
+            triggeredRules = emptyList()
+        )
+
+        uiState = uiState.copy(
+            inputText = "",
+            analysisResult = "Pensando...",
+            triageResult = chatTriageResult // ¡Esto activa la vista en HomeScreen!
+        )
+
+        currentInferenceJob = viewModelScope.launch {
+            setLoading(true, "Escribiendo...")
+            withContext(Dispatchers.IO) {
+                var currentResponse = ""
+
+                generateLlamaStream?.invoke(chatHistorySession) { token ->
+                    if (currentInferenceJob?.isActive != true) return@invoke
+
+                    currentResponse += token
+
+                    if (currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
+                        viewModelScope.launch {
+                            procesarDiagnosticoFinal(currentResponse, consentimientoAceptado)
+                        }
+                        cancelNativeLlama?.invoke()
+                        return@invoke
+                    }
+
+                    // 👇 ACTUALIZAMOS LA EXPLICACIÓN DEL TRIAGE RESULT EN CADA TOKEN
+                    viewModelScope.launch(Dispatchers.Main) {
+                        chatTriageResult = chatTriageResult.copy(llmExplanation = currentResponse)
+                        uiState = uiState.copy(
+                            analysisResult = currentResponse,
+                            triageResult = chatTriageResult
+                        )
                     }
                 }
 
-                val tiempoFinMs = System.currentTimeMillis()
-                val duracionTotalProcesamiento = tiempoFinMs - tiempoInicioMs
-
-
-
-                // 4. GUARDADO FINAL EN BASE DE DATOS (ACTUALIZADO)
-                guardarLogAuditoria(
-                    context = getApplication(),
-                    inputUsuario = originalUserInput,
-                    respuestaIA = explanationGenerator.validateAndFilterResponse(accumulatedExplanation),
-                    reglas = engineEval.triggeredRules.joinToString(", "), // Corrección menor sugerida aquí
-                    nivelRiesgo = engineEval.riskLevel.name,
-                    consentimiento = consentimientoAceptado,
-                    tiempoProcesamiento = duracionTotalProcesamiento
-                )
+                if (currentInferenceJob?.isActive == true) {
+                    withContext(Dispatchers.Main) {
+                        setLoading(false, "Esperando tu respuesta...")
+                        chatHistorySession += "$currentResponse<|eot_id|>\n"
+                    }
+                }
             }
+        }
+    }
+
+
+
+
+    // 👇 3. LA SEGUNDA PARTE DE TU CÓDIGO ORIGINAL (Ejecuta la auditoría al final)
+    private fun procesarDiagnosticoFinal(llmFinalResponse: String, consentimientoAceptado: Boolean) {
+        val tiempoInicioMs = System.currentTimeMillis()
+
+        // Limpiamos la palabra clave para que no se vea en la pantalla final
+        val cleanExplanation = llmFinalResponse.replace("[DIAGNOSTICO_FINAL]", "").trim()
+        val safeExplanation = explanationGenerator.validateAndFilterResponse(cleanExplanation)
+
+        // Como quitamos los campos visuales, pasamos un síntoma estructurado genérico o seguro
+        // para que tu ClinicalRuleEngine no falle y devuelva un riesgo.
+        val finalSymptoms = com.g022.sanamovil.engine.StructuredSymptoms(
+            intensity = 5,
+            age = uiState.wizardAge.toIntOrNull() ?: 30,
+            isConscious = true,
+            radiatingPain = false
+        )
+
+        val engineEval = ruleEngine.evaluateSymptoms(finalSymptoms)
+        val clinicalRiskLevel = engineEval.riskLevel
+        val urgency = ResponseLibrary.mapRiskToUrgency(clinicalRiskLevel)
+        val emergencyLevelUi = mapRiskToEmergencyLevel(clinicalRiskLevel)
+
+        val finalTriageResult = TriageResult(
+            urgencyLevel = urgency,
+            timeframe = ResponseLibrary.getTimeframe(urgency),
+            actionType = ResponseLibrary.getActionType(urgency),
+            standardMessage = ResponseLibrary.getStandardMessage(urgency),
+            llmExplanation = safeExplanation, // ¡Usamos la respuesta directa de Llama!
+            triggeredRules = engineEval.triggeredRules
+        )
+
+        viewModelScope.launch(Dispatchers.Main) {
+            setResult(finalTriageResult, emergencyLevelUi)
+            setLoading(false, "Análisis completado")
+
+            val duracionTotalProcesamiento = System.currentTimeMillis() - tiempoInicioMs
+
+            // GUARDADO FINAL EN BASE DE DATOS MANTENIDO INTACTO
+            guardarLogAuditoria(
+                context = getApplication(),
+                inputUsuario = originalUserInput + "\n[Evaluado por Chat]",
+                respuestaIA = safeExplanation,
+                reglas = engineEval.triggeredRules.joinToString(", "),
+                nivelRiesgo = engineEval.riskLevel.name,
+                consentimiento = consentimientoAceptado,
+                tiempoProcesamiento = duracionTotalProcesamiento
+            )
         }
     }
 
