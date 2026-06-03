@@ -169,7 +169,6 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     private fun continuarChat(respuestaUsuario: String) {
         turnosChat++
 
-        // 1. Dibujamos TU burbuja verde en pantalla antes de mandarla a Llama
         val listaActualizada = uiState.historialMensajes.toMutableList()
         listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = true, texto = respuestaUsuario))
 
@@ -179,8 +178,8 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             historialMensajes = listaActualizada
         )
 
-        // 2. Trampa de turno para forzar el diagnóstico rápido
-        val ordenOculta = if (turnosChat >= 1) "\n(Nota del sistema: Ya tienes información suficiente. Emite tu evaluación final empezando con [DIAGNOSTICO_FINAL] ahora mismo)." else ""
+        // Reforzamos la instrucción para que sepa que ya debe concluir
+        val ordenOculta = if (turnosChat >= 1) "\n(Nota del sistema: Evalúa la información proporcionada y emite tu diagnóstico y recomendaciones finales)." else ""
 
         chatHistorySession += "<|start_header_id|>user<|end_header_id|>\n\n$respuestaUsuario $ordenOculta<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
@@ -191,50 +190,45 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
                 generateLlamaStream?.invoke(chatHistorySession) { token ->
                     if (currentInferenceJob?.isActive != true) return@invoke
-
                     currentResponse += token
-
-                    if (currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
-                        viewModelScope.launch {
-                            procesarDiagnosticoFinal(currentResponse, uiState.wizardConsentAccepted)
-                        }
-                        cancelNativeLlama?.invoke()
-                        return@invoke
-                    }
 
                     viewModelScope.launch(Dispatchers.Main) {
                         uiState = uiState.copy(analysisResult = currentResponse)
                     }
                 }
 
+                // 👇 LA MAGIA INFALIBLE
                 if (currentInferenceJob?.isActive == true) {
                     withContext(Dispatchers.Main) {
                         setLoading(false, "Esperando tu respuesta...")
                         chatHistorySession += "$currentResponse<|eot_id|>\n"
 
-                        // Guardamos la respuesta del modelo como una burbuja estática
-                        val nuevaLista = uiState.historialMensajes.toMutableList()
-                        nuevaLista.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
-                        uiState = uiState.copy(
-                            analysisResult = "",
-                            historialMensajes = nuevaLista
-                        )
+                        // Si ya es el turno 1 (o más), forzamos la tarjeta final.
+                        // El texto que Llama escribió pasará a ser el análisis de la tarjeta.
+                        if (turnosChat >= 1 || currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
+                            uiState = uiState.copy(analysisResult = "") // Limpiamos la vista en vivo
+                            procesarDiagnosticoFinal(currentResponse, uiState.wizardConsentAccepted)
+                        } else {
+                            val nuevaLista = uiState.historialMensajes.toMutableList()
+                            nuevaLista.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
+                            uiState = uiState.copy(
+                                analysisResult = "",
+                                historialMensajes = nuevaLista
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    // 👇 1. NUEVA VARIABLE PARA LA MEMORIA DEL CHAT (Ponla arriba con tus otras variables)
     private var chatHistorySession: String = ""
 
 
-    // 👇 2. LA FUNCIÓN MODIFICADA (Inicia el Chat)
     fun submitWizardAndCalculate() {
-        // 1. Limpiamos TODO rastro de resultados anteriores y preparamos el chat
         uiState = uiState.copy(
             showWizard = false,
-            triageResult = null, // 👈 Clave para que el chat se muestre
+            triageResult = null,
             inputText = "",
             analysisResult = "Pensando...",
             historialMensajes = listOf(com.g022.sanamovil.MensajeChat(esUsuario = true, texto = originalUserInput))
@@ -243,13 +237,13 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         val enfermedades = if (uiState.wizardChronicConditions.isNotBlank()) uiState.wizardChronicConditions else "Ninguna registrada"
         val consentimientoAceptado = uiState.wizardConsentAccepted
 
-        turnosChat = 0 // Reiniciamos nuestro contador oculto
+        turnosChat = 0
 
         val systemPrompt = """
             Eres la IA de triaje clínico de SanaMovil.
             REGLAS ESTRICTAS:
             1. En tu PRIMERA respuesta, haz un ÚNICO bloque con 2 o 3 preguntas vitales para entender el caso.
-            2. En tu SEGUNDA respuesta (cuando el usuario te conteste), DEBES emitir el diagnóstico iniciando EXACTAMENTE con la etiqueta: [DIAGNOSTICO_FINAL], seguido de tu evaluación. No hagas más preguntas.
+            2. En tu SEGUNDA respuesta (cuando el usuario te conteste), emite tu evaluación clínica detallada final. Ya no hagas preguntas.
         """.trimIndent()
 
         val contextoPaciente = """
@@ -276,35 +270,31 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
                 generateLlamaStream?.invoke(chatHistorySession) { token ->
                     if (currentInferenceJob?.isActive != true) return@invoke
-
                     currentResponse += token
 
-                    if (currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
-                        viewModelScope.launch {
-                            procesarDiagnosticoFinal(currentResponse, consentimientoAceptado)
-                        }
-                        cancelNativeLlama?.invoke()
-                        return@invoke
-                    }
-
-                    // 👇 AQUÍ ESTABA EL BUG: Solo actualizamos analysisResult, NUNCA tocamos triageResult
                     viewModelScope.launch(Dispatchers.Main) {
                         uiState = uiState.copy(analysisResult = currentResponse)
                     }
                 }
 
+                // 👇 AL TERMINAR DE ESCRIBIR, EVALUAMOS QUÉ HACER
                 if (currentInferenceJob?.isActive == true) {
                     withContext(Dispatchers.Main) {
                         setLoading(false, "Esperando tu respuesta...")
                         chatHistorySession += "$currentResponse<|eot_id|>\n"
 
-                        // Guardamos el mensaje final de Llama como una burbuja estática
-                        val listaActualizada = uiState.historialMensajes.toMutableList()
-                        listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
-                        uiState = uiState.copy(
-                            analysisResult = "", // Limpiamos la variable en vivo
-                            historialMensajes = listaActualizada
-                        )
+                        // Si Llama se adelanta y da el diagnóstico en el turno 0, lo atrapamos
+                        if (currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
+                            uiState = uiState.copy(analysisResult = "")
+                            procesarDiagnosticoFinal(currentResponse, consentimientoAceptado)
+                        } else {
+                            val listaActualizada = uiState.historialMensajes.toMutableList()
+                            listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
+                            uiState = uiState.copy(
+                                analysisResult = "",
+                                historialMensajes = listaActualizada
+                            )
+                        }
                     }
                 }
             }
