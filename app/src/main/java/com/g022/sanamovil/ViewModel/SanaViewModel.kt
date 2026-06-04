@@ -178,9 +178,10 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             historialMensajes = listaActualizada
         )
 
-        // Reforzamos la instrucción para que sepa que ya debe concluir
-        val ordenOculta = if (turnosChat >= 1) "\n(Nota del sistema: Evalúa la información proporcionada y emite tu diagnóstico y recomendaciones finales)." else ""
-
+        // Reforzamos la instrucción de forma muy estricta para apagar su instinto de preguntar
+        val ordenOculta = if (turnosChat >= 1) {
+            "\n\n[INSTRUCCIÓN DEL SISTEMA: Genera tu evaluación final empezando obligatoriamente por [DIAGNOSTICO_FINAL]. TIENES ESTRICTAMENTE PROHIBIDO HACER PREGUNTAS AL PACIENTE. NO USES SIGNOS DE INTERROGACIÓN. Evalúa con lo que tienes, da una prioridad y concluye el caso ahora.]"
+        } else ""
         chatHistorySession += "<|start_header_id|>user<|end_header_id|>\n\n$respuestaUsuario $ordenOculta<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
         currentInferenceJob = viewModelScope.launch {
@@ -240,10 +241,11 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
         turnosChat = 0
 
         val systemPrompt = """
-            Eres la IA de triaje clínico de SanaMovil.
-            REGLAS ESTRICTAS:
-            1. En tu PRIMERA respuesta, haz un ÚNICO bloque con 2 o 3 preguntas vitales para entender el caso.
-            2. En tu SEGUNDA respuesta (cuando el usuario te conteste), emite tu evaluación clínica detallada final. Ya no hagas preguntas.
+            Eres el motor de triaje de SanaMovil.
+            REGLAS:
+            1. En tu PRIMER turno, haz de 3 a 4 preguntas en un solo mensaje que te ayuden a entender mejor el malestar del usuario.
+            2. En tu SEGUNDO turno, DEBES dar el diagnóstico final comenzando EXACTAMENTE con la etiqueta [DIAGNOSTICO_FINAL].
+            3. REGLA DE ORO PARA EL DIAGNÓSTICO: ESTÁ ESTRICTAMENTE PROHIBIDO hacer más preguntas. NO puedes usar signos de interrogación (?). Si te falta información, evalúa el peor escenario posible con los datos actuales, asigna una prioridad y recomienda buscar ayuda médica.
         """.trimIndent()
 
         val contextoPaciente = """
