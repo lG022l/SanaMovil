@@ -1047,7 +1047,6 @@ fun BurbujaChat(mensaje: com.g022.sanamovil.MensajeChat) {
     // Colores: Verde para el usuario, Gris oscuro para Llama
     val fondo = if (mensaje.esUsuario) Color(0xFF00796B) else MaterialTheme.colorScheme.surfaceVariant
     val colorTexto = if (mensaje.esUsuario) Color.White else MaterialTheme.colorScheme.onSurface
-    val alineacion = if (mensaje.esUsuario) Alignment.CenterEnd else Alignment.CenterStart
 
     // Forma de la burbuja (pico a la derecha o a la izquierda)
     val forma = if (mensaje.esUsuario) {
@@ -1056,11 +1055,32 @@ fun BurbujaChat(mensaje: com.g022.sanamovil.MensajeChat) {
         RoundedCornerShape(16.dp, 16.dp, 16.dp, 0.dp)
     }
 
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alineacion) {
+    // Usamos un Row para colocar la imagen al lado del mensaje
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (mensaje.esUsuario) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom // Alinea el icono a la parte inferior de la burbuja
+    ) {
+
+        // Si NO es el usuario (es el bot), mostramos el avatar circular
+        if (!mensaje.esUsuario) {
+            Image(
+                // Puedes usar R.drawable.logo, logo2 o logov3 según prefieras
+                painter = painterResource(id = R.drawable.botmeme),
+                contentDescription = "Avatar de la IA",
+                modifier = Modifier
+                    .size(36.dp) // Tamaño pequeño para que parezca de chat
+                    .clip(CircleShape) // Recorta la imagen en forma de círculo
+                    .background(MaterialTheme.colorScheme.primaryContainer), // Fondo por si el logo tiene transparencia
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.width(8.dp)) // Espacio entre la imagen y la burbuja
+        }
+
         Surface(
             color = fondo,
             shape = forma,
-            modifier = Modifier.widthIn(max = 300.dp),
+            modifier = Modifier.widthIn(max = 280.dp), // Reducido ligeramente para dejar espacio al avatar
             tonalElevation = 2.dp
         ) {
             Text(
