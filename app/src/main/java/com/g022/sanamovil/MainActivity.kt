@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                 // 1. Iniciamos el controlador de navegación
                 val navController = rememberNavController()
 
-                val llamaModelName = "Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf"
+                val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
                 val modelDownloadUrl = "https://huggingface.co/RichardErkhov/Na0s_-_Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT-gguf/resolve/main/Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf?download=true"
 
                 // 2. Configuramos las rutas
@@ -158,7 +158,7 @@ class MainActivity : ComponentActivity() {
         }
 
         // 2. Cargar Llama (MedGemma)
-        val llamaModelName = "Llama-3.2-3B-Instruct-Medical-Chatbot-LoRA-FT.Q4_K_M.gguf"
+        val llamaModelName = "medgemma-1.5-4b-it-Q4_K_M.gguf"
         val llamaPath = getModelPath(llamaModelName)
 
         if (File(llamaPath).exists()) {

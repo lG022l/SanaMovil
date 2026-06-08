@@ -345,7 +345,13 @@ fun SanaAppScreen(
                                 uiState = state,
                                 originalText = lastSubmittedText,
                                 onReset = {
+                                    // 1. Ejecuta el reset general del ViewModel
                                     viewModel.resetState()
+
+                                    // 2. Limpia de forma explícita el texto del input por si quedó algo escrito
+                                    viewModel.updateInput("")
+
+                                    // 3. Resetea la variable local que almacena el último texto enviado
                                     lastSubmittedText = ""
                                 },
                                 onCancel = {

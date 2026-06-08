@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
 // para poder acceder a la base de datos sin problemas de Contexto.
 class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
-
+//jejejejjejejejjejjeje
 
     var uiState by mutableStateOf(UiState())
         private set
@@ -178,40 +178,47 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
             historialMensajes = listaActualizada
         )
 
-        // Reforzamos la instrucción de forma muy estricta para apagar su instinto de preguntar
         val ordenOculta = if (turnosChat >= 1) {
-            "\n\n[INSTRUCCIÓN DEL SISTEMA: Genera tu evaluación final empezando obligatoriamente por [DIAGNOSTICO_FINAL]. TIENES ESTRICTAMENTE PROHIBIDO HACER PREGUNTAS AL PACIENTE. NO USES SIGNOS DE INTERROGACIÓN. Evalúa con lo que tienes, da una prioridad y concluye el caso ahora.]"
+            "\n[INSTRUCCIÓN: Termina el interrogatorio. Responde SÓLO con la evaluación clínica en español.]"
         } else ""
-        chatHistorySession += "<|start_header_id|>user<|end_header_id|>\n\n$respuestaUsuario $ordenOculta<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+
+        // 👇 PRE-FILLING TURNO 2: Le inyectamos la etiqueta y el título nosotros mismos.
+        val preFillDiagnostico = "[DIAGNOSTICO_FINAL]\nImpresión Clínica:"
+        chatHistorySession += "<start_of_turn>user\n$respuestaUsuario $ordenOculta<end_of_turn>\n<start_of_turn>model\n$preFillDiagnostico"
 
         currentInferenceJob = viewModelScope.launch {
             setLoading(true, "Escribiendo...")
             withContext(Dispatchers.IO) {
-                var currentResponse = ""
+
+                // Iniciamos la respuesta obviando la etiqueta oculta para que no se vea feo en la pantalla de chat
+                var currentResponseText = "Impresión Clínica:"
+
+                // Esta variable guardará el texto completo (con la etiqueta) para que tu motor clínico lo procese
+                var fullResponseForEngine = preFillDiagnostico
 
                 generateLlamaStream?.invoke(chatHistorySession) { token ->
                     if (currentInferenceJob?.isActive != true) return@invoke
-                    currentResponse += token
+                    currentResponseText += token
+                    fullResponseForEngine += token
 
                     viewModelScope.launch(Dispatchers.Main) {
-                        uiState = uiState.copy(analysisResult = currentResponse)
+                        uiState = uiState.copy(analysisResult = currentResponseText)
                     }
                 }
 
-                // 👇 LA MAGIA INFALIBLE
                 if (currentInferenceJob?.isActive == true) {
                     withContext(Dispatchers.Main) {
                         setLoading(false, "Esperando tu respuesta...")
-                        chatHistorySession += "$currentResponse<|eot_id|>\n"
+                        chatHistorySession += "${currentResponseText.replace("Impresión Clínica:", "")}<end_of_turn>\n"
 
-                        // Si ya es el turno 1 (o más), forzamos la tarjeta final.
-                        // El texto que Llama escribió pasará a ser el análisis de la tarjeta.
-                        if (turnosChat >= 1 || currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
-                            uiState = uiState.copy(analysisResult = "") // Limpiamos la vista en vivo
-                            procesarDiagnosticoFinal(currentResponse, uiState.wizardConsentAccepted)
+                        // Forzamos el cierre si ya es el turno 1
+                        if (turnosChat >= 1) {
+                            uiState = uiState.copy(analysisResult = "")
+                            // Pasamos el string completo que SÍ tiene la etiqueta oculta
+                            procesarDiagnosticoFinal(fullResponseForEngine, uiState.wizardConsentAccepted)
                         } else {
                             val nuevaLista = uiState.historialMensajes.toMutableList()
-                            nuevaLista.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
+                            nuevaLista.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponseText))
                             uiState = uiState.copy(
                                 analysisResult = "",
                                 historialMensajes = nuevaLista
@@ -237,38 +244,30 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
 
         val enfermedades = if (uiState.wizardChronicConditions.isNotBlank()) uiState.wizardChronicConditions else "Ninguna registrada"
         val consentimientoAceptado = uiState.wizardConsentAccepted
-
         turnosChat = 0
 
         val systemPrompt = """
-            Eres el motor de triaje de SanaMovil.
-            REGLAS:
-            1. En tu PRIMER turno, haz de 3 a 4 preguntas en un solo mensaje que te ayuden a entender mejor el malestar del usuario.
-            2. En tu SEGUNDO turno, DEBES dar el diagnóstico final comenzando EXACTAMENTE con la etiqueta [DIAGNOSTICO_FINAL].
-            3. REGLA DE ORO PARA EL DIAGNÓSTICO: ESTÁ ESTRICTAMENTE PROHIBIDO hacer más preguntas. NO puedes usar signos de interrogación (?). Si te falta información, evalúa el peor escenario posible con los datos actuales, asigna una prioridad y recomienda buscar ayuda médica.
+            Eres SanaMovil, un médico de triaje. 
+            Habla SOLO en español. NO des diagnósticos todavía. Haz 1 o 2 preguntas breves.
         """.trimIndent()
 
         val contextoPaciente = """
-            Edad: ${uiState.wizardAge} años.
-            Tiempo con síntomas: ${uiState.wizardDuration}.
-            Historial médico: $enfermedades.
-            Síntomas iniciales: $originalUserInput
+            $systemPrompt
             
-            Por favor, hazme las preguntas para entender mi caso.
+            Paciente: ${uiState.wizardAge} años. Síntomas: ${uiState.wizardDuration}.
+            Historial: $enfermedades.
+            Mensaje inicial: $originalUserInput
         """.trimIndent()
 
-        chatHistorySession = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            
-        $systemPrompt<|eot_id|><|start_header_id|>user<|end_header_id|>
-        
-        $contextoPaciente<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-        
-        """.trimIndent()
+        // 👇 LA MAGIA: PRE-FILLING. Le escribimos el inicio de la respuesta para evitar que genere el <unused94>thought
+        val preFillLlama = "Claro, para entender mejor tu caso y darte un diagnóstico, necesito hacerte estas preguntas:\n1."
+        chatHistorySession = "<start_of_turn>user\n$contextoPaciente<end_of_turn>\n<start_of_turn>model\n$preFillLlama"
 
         currentInferenceJob = viewModelScope.launch {
             setLoading(true, "Escribiendo...")
             withContext(Dispatchers.IO) {
-                var currentResponse = ""
+                // Empezamos la variable visual con el texto que inyectamos a la fuerza
+                var currentResponse = preFillLlama
 
                 generateLlamaStream?.invoke(chatHistorySession) { token ->
                     if (currentInferenceJob?.isActive != true) return@invoke
@@ -279,24 +278,17 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // 👇 AL TERMINAR DE ESCRIBIR, EVALUAMOS QUÉ HACER
                 if (currentInferenceJob?.isActive == true) {
                     withContext(Dispatchers.Main) {
                         setLoading(false, "Esperando tu respuesta...")
-                        chatHistorySession += "$currentResponse<|eot_id|>\n"
+                        chatHistorySession += "${currentResponse.replace(preFillLlama, "")}<end_of_turn>\n"
 
-                        // Si Llama se adelanta y da el diagnóstico en el turno 0, lo atrapamos
-                        if (currentResponse.contains("[DIAGNOSTICO_FINAL]")) {
-                            uiState = uiState.copy(analysisResult = "")
-                            procesarDiagnosticoFinal(currentResponse, consentimientoAceptado)
-                        } else {
-                            val listaActualizada = uiState.historialMensajes.toMutableList()
-                            listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
-                            uiState = uiState.copy(
-                                analysisResult = "",
-                                historialMensajes = listaActualizada
-                            )
-                        }
+                        val listaActualizada = uiState.historialMensajes.toMutableList()
+                        listaActualizada.add(com.g022.sanamovil.MensajeChat(esUsuario = false, texto = currentResponse))
+                        uiState = uiState.copy(
+                            analysisResult = "",
+                            historialMensajes = listaActualizada
+                        )
                     }
                 }
             }
@@ -805,16 +797,13 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetState() {
-        cancelProcessing() // Cancela cualquier generación en curso
-
         uiState = uiState.copy(
-            triageResult = null,
-            analysisResult = "",
-            statusMessage = "",
-            showWizard = false,
-            inputText = "",
-            emergencyLevel = EmergencyLevel.NONE,
-            isLoading = false // 👇 AÑADE ESTO: Fuerza el apagado de la carga
+            triageResult = null,           // Quita la tarjeta de resultados
+            historialMensajes = emptyList(), // Vacía por completo el chat interactivo
+            analysisResult = "",           // Borra cualquier texto en vivo residual
+            showWizard = false,            // Asegura que no se abra el formulario automáticamente
+            isLoading = false,             // Apaga cualquier indicador de carga activo
+            statusMessage = ""             // Limpia mensajes de estado del sistema
         )
     }
 
