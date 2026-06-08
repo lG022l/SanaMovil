@@ -1087,7 +1087,7 @@ fun BurbujaChat(mensaje: com.g022.sanamovil.MensajeChat) {
                 text = mensaje.texto,
                 color = colorTexto,
                 modifier = Modifier.padding(12.dp),
-                fontSize = 15.sp
+                fontSize = 16.sp
             )
         }
     }
