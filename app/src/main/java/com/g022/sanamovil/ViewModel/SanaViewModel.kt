@@ -797,13 +797,30 @@ class SanaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetState() {
+        cancelProcessing() // Cancela cualquier generación en curso nativa o corrutina
+
+        // 1. LLEVAMOS A CERO EL HISTORIAL TEXTUAL DE LLAMA
+        chatHistorySession = ""
+        turnosChat = 0
+        originalUserInput = ""
+
+        // 2. REINICIAMOS EL UI_STATE LIMPIANDO EL CHAT VISUAL Y CAMPOS DEL FORMULARIO
         uiState = uiState.copy(
-            triageResult = null,           // Quita la tarjeta de resultados
-            historialMensajes = emptyList(), // Vacía por completo el chat interactivo
-            analysisResult = "",           // Borra cualquier texto en vivo residual
-            showWizard = false,            // Asegura que no se abra el formulario automáticamente
-            isLoading = false,             // Apaga cualquier indicador de carga activo
-            statusMessage = ""             // Limpia mensajes de estado del sistema
+            triageResult = null,
+            analysisResult = "",
+            statusMessage = "",
+            showWizard = false,
+            inputText = "",
+            emergencyLevel = EmergencyLevel.NONE,
+            isLoading = false,
+
+            // Limpiamos la lista de burbujas para que la pantalla no recuerde el chat anterior
+            historialMensajes = emptyList(),
+
+            // Opcional: Limpiamos los campos del TriageWizard del paciente anterior
+            wizardAge = "",
+            wizardChronicConditions = "",
+            wizardConsentAccepted = false
         )
     }
 
